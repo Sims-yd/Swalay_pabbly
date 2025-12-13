@@ -57,3 +57,14 @@ export const createTemplate = async (data: any): Promise<any> => {
     }
     return response.json();
 };
+
+export const deleteTemplate = async (name: string): Promise<{ success: boolean; message: string }> => {
+    const response = await fetch(`${BACKEND_URL}/templates?name=${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to delete template');
+    }
+    return response.json();
+};

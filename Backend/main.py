@@ -260,11 +260,32 @@ async def create_template(req: TemplateCreate):
             print(f"Unexpected error: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/templates/sync")
-async def sync_templates():
-    # In a real app with a DB, this would fetch from Meta and update the DB.
-    # Here, we just return success, and the frontend will re-fetch the list.
-    return {"status": "success", "message": "Templates synced successfully"}
+@app.delete("/templates")
+async def delete_template(name: str):
+    # Meta API to delete by name: DELETE /{waba_id}/message_templates?name={name}
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_WABA_ID}/message_templates"
+    headers = {
+        "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+    }
+    params = {"name": name}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.delete(url, headers=headers, params=params)
+            # Meta might return 200 even if not found, or error.
+            if response.status_code != 200:
+                 # Try deleting by ID if name fails? No, name is standard for WABA edge.
+                 # Let's check error
+                 print(f"Error deleting template: {response.text}")
+                 raise HTTPException(status_code=400, detail=f"Failed to delete template: {response.text}")
+            
+            return {"success": True, "message": "Template deleted successfully"}
+        except httpx.HTTPStatusError as e:
+             print(f"Error deleting template: {e.response.text}")
+             raise HTTPException(status_code=400, detail=f"Failed to delete template: {e.response.text}")
+        except Exception as e:
+            print(f"Unexpected error: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 # 7) Implement endpoint: POST /send-template
 class TemplateRequest(BaseModel):
