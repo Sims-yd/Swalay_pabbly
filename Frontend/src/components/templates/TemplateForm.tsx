@@ -4,7 +4,15 @@ import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Template } from "@/api/templates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Info, Copy } from "lucide-react";
+import { Combobox } from "@/components/ui/Combobox";
+import TemplateTypeSelector from "./TemplateTypeSelector";
+import TemplatePreview from "./TemplatePreview";
+import { TemplateSchema, TemplateFormData } from "@/lib/validators/template.schema";
+import { mapFormToPayload } from "@/lib/templateMapper";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import InteractiveActions from "./InteractiveActions";
 
 interface TemplateFormProps {
     initialData?: Template;
@@ -12,49 +20,64 @@ interface TemplateFormProps {
     isSubmitting: boolean;
 }
 
-export default function TemplateForm({ initialData, onSubmit, isSubmitting }: TemplateFormProps) {
-    const [name, setName] = useState(initialData?.name || "");
-    const [category, setCategory] = useState(initialData?.category || "MARKETING");
-    const [language, setLanguage] = useState(initialData?.language || "en_US");
-    const [headerText, setHeaderText] = useState("");
-    const [bodyText, setBodyText] = useState("");
-    const [footerText, setFooterText] = useState("");
+const LANGUAGES = [
+    { label: "English (US)", value: "en_US" },
+    { label: "English (UK)", value: "en_GB" },
+    { label: "Hindi", value: "hi" },
+    { label: "Arabic", value: "ar" },
+    { label: "Spanish", value: "es" },
+    { label: "Portuguese (BR)", value: "pt_BR" },
+    { label: "French", value: "fr" },
+    { label: "German", value: "de" },
+    { label: "Italian", value: "it" },
+    { label: "Indonesian", value: "id" },
+    { label: "Malay", value: "ms" },
+    { label: "Thai", value: "th" },
+    { label: "Vietnamese", value: "vi" },
+    { label: "Turkish", value: "tr" },
+    { label: "Russian", value: "ru" },
+    { label: "Japanese", value: "ja" },
+    { label: "Korean", value: "ko" },
+    { label: "Chinese (Simplified)", value: "zh_CN" },
+    { label: "Chinese (Traditional)", value: "zh_TW" },
+];
 
-    // New state for parameters
+export default function TemplateForm({ initialData, onSubmit, isSubmitting }: TemplateFormProps) {
+    const form = useForm<TemplateFormData>({
+        resolver: zodResolver(TemplateSchema),
+        defaultValues: {
+            name: initialData?.name || "",
+            category: (initialData?.category as any) || "MARKETING",
+            language: initialData?.language || "en_US",
+            type: "TEXT",
+            body_text: "",
+            buttons: [],
+        }
+    });
+
+    const { register, control, handleSubmit, watch, setValue, formState: { errors } } = form;
+
+    const category = watch("category");
+    const type = watch("type");
+    const bodyText = watch("body_text");
+    const headerText = watch("header_text");
+    const buttons = watch("buttons") || [];
+
+    // Variable parsing logic
     const [bodyVariables, setBodyVariables] = useState<string[]>([]);
     const [headerVariables, setHeaderVariables] = useState<string[]>([]);
     const [variableExamples, setVariableExamples] = useState<Record<string, string>>({});
-    const [buttons, setButtons] = useState<{ type: "QUICK_REPLY"; text: string }[]>([]);
 
-    useEffect(() => {
-        if (initialData) {
-            setName(initialData.name);
-            setCategory(initialData.category);
-            setLanguage(initialData.language);
-
-            const header = initialData.components.find((c) => c.type === "HEADER");
-            if (header?.format === "TEXT") setHeaderText(header.text || "");
-
-            const body = initialData.components.find((c) => c.type === "BODY");
-            if (body) setBodyText(body.text || "");
-
-            const footer = initialData.components.find((c) => c.type === "FOOTER");
-            if (footer) setFooterText(footer.text || "");
-        }
-    }, [initialData]);
-
-    // Parse variables when text changes
     useEffect(() => {
         const parseVariables = (text: string) => {
             if (!text) return [];
-            // Only support positional {{1}}, {{2}} etc.
             const regex = /{{\s*(\d+)\s*}}/g;
             const matches = [...text.matchAll(regex)];
             return matches.map(m => m[1]);
         };
 
-        const bodyVars = parseVariables(bodyText);
-        const headerVars = parseVariables(headerText);
+        const bodyVars = parseVariables(bodyText || "");
+        const headerVars = parseVariables(headerText || "");
 
         setBodyVariables(bodyVars);
         setHeaderVariables(headerVars);
@@ -65,98 +88,40 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
             ...prev,
             [variable]: value
         }));
+        setValue("variable_examples", { ...variableExamples, [variable]: value });
+    };
+
+    const handleFormSubmit = async (data: TemplateFormData) => {
+        const payload = mapFormToPayload(data);
+        await onSubmit(payload);
     };
 
     const handleAddButton = () => {
         if (buttons.length < 3) {
-            setButtons([...buttons, { type: "QUICK_REPLY", text: "" }]);
+            setValue("buttons", [...buttons, { type: "QUICK_REPLY", text: "" }]);
         }
     };
 
-    const handleButtonChange = (index: number, text: string) => {
-        const newButtons = [...buttons];
-        newButtons[index].text = text;
-        setButtons(newButtons);
+    const handleAddOtpButton = () => {
+        if (buttons.length < 1) {
+            setValue("buttons", [{ type: "COPY_CODE", text: "Copy Code" }]);
+        }
     };
 
     const handleRemoveButton = (index: number) => {
-        setButtons(buttons.filter((_, i) => i !== index));
+        setValue("buttons", buttons.filter((_, i) => i !== index));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        const components: any[] = [];
-
-        if (headerText) {
-            const headerComponent: any = {
-                type: "HEADER",
-                format: "TEXT",
-                text: headerText,
-            };
-
-            if (headerVariables.length > 0) {
-                headerComponent.example = {
-                    header_text: [variableExamples[headerVariables[0]] || "example"]
-                };
-            }
-            components.push(headerComponent);
-        }
-
-        if (bodyText) {
-            const bodyComponent: any = {
-                type: "BODY",
-                text: bodyText,
-            };
-
-            if (bodyVariables.length > 0) {
-                // Body example expects List[List[str]] -> [["val1", "val2"]]
-                const exampleValues = bodyVariables.map(v => variableExamples[v] || "example");
-                bodyComponent.example = {
-                    body_text: [exampleValues]
-                };
-            }
-            components.push(bodyComponent);
-        }
-
-        if (footerText) {
-            components.push({
-                type: "FOOTER",
-                text: footerText,
-            });
-        }
-
-        if (buttons.length > 0) {
-            components.push({
-                type: "BUTTONS",
-                buttons: buttons
-            });
-        }
-
-        onSubmit({
-            name,
-            category,
-            language,
-            components
-        });
-    };
-
-    // Helper to render text with highlighted variables
-    const renderPreviewText = (text: string) => {
-        if (!text) return null;
-        const parts = text.split(/({{\d+}})/g);
-        return parts.map((part, i) => {
-            if (part.match(/^{{\d+}}$/)) {
-                return <span key={i} className="bg-yellow-200 text-yellow-800 px-1 rounded mx-0.5">{part}</span>;
-            }
-            return part;
-        });
+    const handleButtonChange = (index: number, field: string, value: any) => {
+        const newButtons = [...buttons];
+        // @ts-ignore
+        newButtons[index][field] = value;
+        setValue("buttons", newButtons);
     };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column: Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
                 <Card>
                     <CardHeader>
                         <CardTitle>Template Details</CardTitle>
@@ -165,38 +130,66 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Template Name</label>
                             <Input
-                                value={name}
-                                onChange={(e) => setName(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                                {...register("name")}
                                 placeholder="e.g., welcome_message"
-                                required
                             />
+                            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
                             <p className="text-xs text-muted-foreground">Only lowercase letters, numbers, and underscores.</p>
                         </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Category</label>
-                                <Select value={category} onValueChange={setCategory}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="MARKETING">Marketing</SelectItem>
-                                        <SelectItem value="UTILITY">Utility</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Controller
+                                    control={control}
+                                    name="category"
+                                    render={({ field }) => (
+                                        <Select value={field.value} onValueChange={field.onChange}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="MARKETING">Marketing</SelectItem>
+                                                <SelectItem value="UTILITY">Utility</SelectItem>
+                                                <SelectItem value="AUTHENTICATION">Authentication</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Language</label>
-                                <Select value={language} onValueChange={setLanguage}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select language" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="en_US">English (US)</SelectItem>
-                                        <SelectItem value="hi_IN">Hindi</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Controller
+                                    control={control}
+                                    name="language"
+                                    render={({ field }) => (
+                                        <Combobox
+                                            options={LANGUAGES}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            placeholder="Select language"
+                                            searchPlaceholder="Search language..."
+                                            emptyText="No language found."
+                                        />
+                                    )}
+                                />
+                                {errors.language && <p className="text-xs text-destructive">{errors.language.message}</p>}
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Template Type</label>
+                            <Controller
+                                control={control}
+                                name="type"
+                                render={({ field }) => (
+                                    <TemplateTypeSelector
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                        disabled={category === "AUTHENTICATION"}
+                                    />
+                                )}
+                            />
                         </div>
                     </CardContent>
                 </Card>
@@ -206,76 +199,118 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
                         <CardTitle>Content</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Header (Optional)</label>
-                            <Input
-                                value={headerText}
-                                onChange={(e) => setHeaderText(e.target.value)}
-                                placeholder="Header text..."
-                                maxLength={60}
-                            />
-                        </div>
+                        {/* Header Section */}
+                        {type === "TEXT" && category !== "AUTHENTICATION" && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Header (Optional)</label>
+                                <Input
+                                    {...register("header_text")}
+                                    placeholder="Header text..."
+                                    maxLength={60}
+                                />
+                            </div>
+                        )}
 
+                        {["IMAGE", "VIDEO", "DOCUMENT"].includes(type) && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Header Media</label>
+                                <Input
+                                    type="file"
+                                    accept={type === "IMAGE" ? "image/*" : type === "VIDEO" ? "video/*" : ".pdf,.doc,.docx"}
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) setValue("header_file", file);
+                                    }}
+                                />
+                                {errors.header_file && <p className="text-xs text-destructive">{errors.header_file.message as string}</p>}
+                            </div>
+                        )}
+
+                        {/* Body Section */}
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Body</label>
                             <textarea
                                 className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                value={bodyText}
-                                onChange={(e) => setBodyText(e.target.value)}
+                                {...register("body_text")}
                                 placeholder="Enter your message body here... Use {{1}} for variables."
-                                required
-                                maxLength={1024}
                             />
+                            {errors.body_text && <p className="text-xs text-destructive">{errors.body_text.message}</p>}
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Footer (Optional)</label>
-                            <Input
-                                value={footerText}
-                                onChange={(e) => setFooterText(e.target.value)}
-                                placeholder="Footer text..."
-                                maxLength={60}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-medium">Buttons (Optional)</label>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleAddButton}
-                                    disabled={buttons.length >= 3}
-                                >
-                                    <Plus className="h-4 w-4 mr-1" /> Add Button
-                                </Button>
-                            </div>
+                        {/* Footer Section */}
+                        {category !== "AUTHENTICATION" && (
                             <div className="space-y-2">
-                                {buttons.map((btn, idx) => (
-                                    <div key={idx} className="flex gap-2">
-                                        <Input
-                                            value={btn.text}
-                                            onChange={(e) => handleButtonChange(idx, e.target.value)}
-                                            placeholder="Button Text"
-                                            maxLength={25}
-                                        />
+                                <label className="text-sm font-medium">Footer (Optional)</label>
+                                <Input
+                                    {...register("footer_text")}
+                                    placeholder="Footer text..."
+                                    maxLength={60}
+                                />
+                            </div>
+                        )}
+
+                        {/* Buttons Section */}
+                        <div className="space-y-2">
+                            {category === "AUTHENTICATION" ? (
+                                <>
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-medium">OTP Button</label>
                                         <Button
                                             type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="text-destructive hover:text-destructive/90"
-                                            onClick={() => handleRemoveButton(idx)}
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleAddOtpButton}
+                                            disabled={buttons.length >= 1}
                                         >
-                                            <Trash2 className="h-4 w-4" />
+                                            <Plus className="h-4 w-4 mr-1" /> Add OTP Button
                                         </Button>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="space-y-2">
+                                        {buttons.map((btn, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <Select
+                                                    value={btn.type}
+                                                    onValueChange={(val) => handleButtonChange(idx, "type", val)}
+                                                >
+                                                    <SelectTrigger className="w-[140px]">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="COPY_CODE">Copy Code</SelectItem>
+                                                        <SelectItem value="ONE_TAP">One Tap</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <Input
+                                                    value={btn.text}
+                                                    onChange={(e) => handleButtonChange(idx, "text", e.target.value)}
+                                                    placeholder="Button Text"
+                                                    maxLength={25}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-destructive hover:text-destructive/90"
+                                                    onClick={() => handleRemoveButton(idx)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <InteractiveActions
+                                    control={control}
+                                    setValue={setValue}
+                                    errors={errors}
+                                />
+                            )}
                         </div>
                     </CardContent>
                 </Card>
 
+                {/* Variable Examples */}
                 {(bodyVariables.length > 0 || headerVariables.length > 0) && (
                     <Card>
                         <CardHeader>
@@ -318,60 +353,7 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
 
             {/* Right Column: Preview */}
             <div className="hidden lg:block">
-                <div className="sticky top-8">
-                    <Card className="border-none shadow-none bg-transparent">
-                        <CardHeader>
-                            <CardTitle>Preview</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="w-[320px] mx-auto bg-[#E5DDD5] rounded-[30px] p-4 min-h-[600px] border-8 border-gray-800 relative shadow-xl overflow-hidden">
-                                {/* Status Bar Mock */}
-                                <div className="absolute top-0 left-0 right-0 h-6 bg-gray-800 rounded-t-[20px] z-10"></div>
-                                <div className="absolute top-6 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-xl z-10"></div>
-
-                                {/* Chat Area */}
-                                <div className="mt-12 space-y-4">
-                                    <div className="bg-white rounded-lg p-2 shadow-sm max-w-[90%] relative">
-                                        {/* Header */}
-                                        {headerText && (
-                                            <div className="font-bold text-sm mb-1 pb-1 border-b border-gray-100">
-                                                {renderPreviewText(headerText)}
-                                            </div>
-                                        )}
-
-                                        {/* Body */}
-                                        <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                                            {bodyText ? renderPreviewText(bodyText) : <span className="text-gray-400 italic">Message body...</span>}
-                                        </div>
-
-                                        {/* Footer */}
-                                        {footerText && (
-                                            <div className="text-[10px] text-gray-500 mt-1 pt-1">
-                                                {footerText}
-                                            </div>
-                                        )}
-
-                                        {/* Timestamp */}
-                                        <div className="text-[10px] text-gray-400 text-right mt-1">
-                                            12:00 PM
-                                        </div>
-                                    </div>
-
-                                    {/* Buttons */}
-                                    {buttons.length > 0 && (
-                                        <div className="space-y-1 max-w-[90%]">
-                                            {buttons.map((btn, idx) => (
-                                                <div key={idx} className="bg-white rounded-lg p-2.5 text-center text-[#00A5F4] text-sm font-medium shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">
-                                                    {btn.text || "Button Text"}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+                <TemplatePreview data={watch()} />
             </div>
         </div>
     );
