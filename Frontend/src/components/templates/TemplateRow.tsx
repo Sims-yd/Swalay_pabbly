@@ -24,11 +24,11 @@ export default function TemplateRow({ template, onSend, onDelete }: {
         <TableRow
             key={template.id}
             onClick={handleRowClick}
-            className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="cursor-pointer bg-card text-card-foreground hover:bg-primary/10 hover:text-primary transition-colors"
         >
-            <TableCell className="font-medium">{template.name}</TableCell>
-            <TableCell>{template.category}</TableCell>
-            <TableCell>{template.language}</TableCell>
+            <TableCell className="font-medium text-card-foreground">{template.name}</TableCell>
+            <TableCell className="text-muted">{template.category}</TableCell>
+            <TableCell className="text-muted">{template.language}</TableCell>
             <TableCell>
                 <Badge
                     variant={
@@ -52,7 +52,7 @@ export default function TemplateRow({ template, onSend, onDelete }: {
                         onClick={(e) => { e.stopPropagation(); onSend(template); }}
                         title="Send Template"
                     >
-                        <Send className="h-4 w-4 text-blue-600" />
+                        <Send className="h-4 w-4 text-primary" />
                     </Button>
                     <Button
                         variant="ghost"

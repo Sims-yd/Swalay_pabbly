@@ -29,11 +29,11 @@ export default function TemplatePreview({ data }: TemplatePreviewProps) {
 
         if (data.type === "IMAGE") {
             return (
-                <div className="w-full h-32 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
+                <div className="w-full h-32 bg-muted rounded-lg mb-2 flex items-center justify-center text-muted">
                     {data.header_file ? (
                         <img src={URL.createObjectURL(data.header_file)} alt="Preview" className="w-full h-full object-cover rounded-lg" />
                     ) : (
-                        <ImageIcon className="h-8 w-8" />
+                        <ImageIcon className="h-8 w-8 text-primary" />
                     )}
                 </div>
             );
@@ -74,31 +74,31 @@ export default function TemplatePreview({ data }: TemplatePreviewProps) {
                     <CardTitle>Preview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="w-[320px] mx-auto bg-[#E5DDD5] rounded-[30px] p-4 min-h-[600px] border-8 border-gray-800 relative shadow-xl overflow-hidden">
+                    <div className="w-[320px] mx-auto bg-[#E5DDD5] rounded-[30px] p-4 min-h-[600px] border-8 border-gray-200 relative shadow-xl overflow-hidden">
                         {/* Status Bar Mock */}
-                        <div className="absolute top-0 left-0 right-0 h-6 bg-gray-800 rounded-t-[20px] z-10"></div>
-                        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-xl z-10"></div>
+                        <div className="absolute top-0 left-0 right-0 h-6 bg-muted rounded-t-[20px] z-10" />
+                        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-32 h-6 bg-muted rounded-b-xl z-10" />
 
                         {/* Chat Area */}
                         <div className="mt-12 space-y-4">
-                            <div className="bg-white rounded-lg p-2 shadow-sm max-w-[90%] relative">
+                            <div className="bg-card rounded-lg p-2 shadow-sm max-w-[90%] relative">
                                 {/* Header */}
                                 {renderHeader()}
 
                                 {/* Body */}
-                                <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                                    {data.body_text ? renderPreviewText(data.body_text) : <span className="text-gray-400 italic">Message body...</span>}
+                                <div className="text-sm text-card-foreground whitespace-pre-wrap">
+                                    {data.body_text ? renderPreviewText(data.body_text) : <span className="text-muted italic">Message body...</span>}
                                 </div>
 
                                 {/* Footer */}
                                 {data.footer_text && (
-                                    <div className="text-[10px] text-gray-500 mt-1 pt-1">
+                                    <div className="text-[10px] text-muted mt-1 pt-1">
                                         {data.footer_text}
                                     </div>
                                 )}
 
                                 {/* Timestamp */}
-                                <div className="text-[10px] text-gray-400 text-right mt-1">
+                                <div className="text-[10px] text-muted text-right mt-1">
                                     12:00 PM
                                 </div>
                             </div>

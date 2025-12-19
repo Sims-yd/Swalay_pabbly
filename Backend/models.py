@@ -40,3 +40,12 @@ class BroadcastTemplateRequest(BaseModel):
     header_type: Optional[str] = None
 
 
+class BroadcastRequest(BaseModel):
+    name: str
+    phones: List[str]
+    template_name: str
+    template_id: Optional[str] = None
+    language_code: str = "en"
+    body_parameters: List[str] = []
+    header_parameters: List[str] = []
+    header_type: Optional[str] = None

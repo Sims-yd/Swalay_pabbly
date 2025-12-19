@@ -1,11 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import httpx
-from typing import List, Optional, Dict, Any, Literal, Union
 from config import settings
-from models import MessageRequest, TemplateRequest, TemplateCreate
+from models import MessageRequest, TemplateRequest, TemplateCreate, BroadcastRequest
 
 app = FastAPI()
 
@@ -369,16 +367,6 @@ from datetime import datetime
 RATE_LIMIT_PER_SECOND = 1  # messages per second
 
 BROADCASTS = []  # In-memory store: each broadcast is a dict
-
-class BroadcastRequest(BaseModel):
-    name: str
-    phones: List[str]
-    template_name: str
-    template_id: Optional[str] = None
-    language_code: str = "en"
-    body_parameters: List[str] = []
-    header_parameters: List[str] = []
-    header_type: Optional[str] = None
 
 
 @app.post("/broadcasts")

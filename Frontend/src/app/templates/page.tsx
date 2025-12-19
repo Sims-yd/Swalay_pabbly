@@ -39,7 +39,7 @@ export default function TemplatesPage() {
     // Ideally fetch contacts from API
     const [contacts] = useState([
         { id: "1", name: "Simran", phone: "917007654569" },
-        { id: "2", name: "John Doe", phone: "15551234567" },
+        { id: "2", name: "Ammar", phone: "917365993869" },
     ]);
 
     useEffect(() => {
