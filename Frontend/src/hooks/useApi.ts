@@ -19,17 +19,46 @@ const mockBroadcasts = [
     { id: 2, name: "Weekly Update", status: "Scheduled", sent: 0, delivered: 0, read: 0 },
 ];
 
+import { useEffect, useState } from "react";
+import { fetchTemplates, getTemplate, Template } from "@/api/templates";
+import { getBroadcasts, createBroadcast } from "@/api/broadcasts";
+
 export const useGetTemplates = () => {
-    // In a real app, use React Query here
-    return { data: mockTemplates, isLoading: false, error: null };
+    const [data, setData] = useState<Template[] | null>(null);
+    const [isLoading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        fetchTemplates().then((t) => { if (mounted) setData(t); }).catch(e => { if (mounted) setError(e); }).finally(() => mounted && setLoading(false));
+        return () => { mounted = false; };
+    }, []);
+
+    return { data, isLoading, error };
 };
 
-export const useSendTemplate = () => {
-    return { mutate: (data: any) => console.log("Sending template", data) };
+export const useGetTemplate = (id: string | null) => {
+    const [data, setData] = useState<Template | null>(null);
+    const [isLoading, setLoading] = useState(false);
+    const [error, setError] = useState<any>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        if (!id) return;
+        setLoading(true);
+        getTemplate(id).then((t) => { if (mounted) setData(t); }).catch(e => { if (mounted) setError(e); }).finally(() => mounted && setLoading(false));
+        return () => { mounted = false; };
+    }, [id]);
+
+    return { data, isLoading, error };
 };
 
 export const useGetMessages = () => {
     return { data: [], isLoading: false };
+};
+
+export const useSendTemplate = () => {
+    return { mutate: (data: any) => console.log("Sending template", data) };
 };
 
 export const useSendMessage = () => {
@@ -45,5 +74,19 @@ export const useAddContact = () => {
 };
 
 export const useGetBroadcasts = () => {
-    return { data: mockBroadcasts, isLoading: false };
+    const [data, setData] = useState<any[] | null>(null);
+    const [isLoading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        getBroadcasts().then((b) => { if (mounted) setData(b); }).catch(e => { if (mounted) setError(e); }).finally(() => mounted && setLoading(false));
+        return () => { mounted = false; };
+    }, []);
+
+    return { data, isLoading, error };
+};
+
+export const useCreateBroadcast = () => {
+    return { mutate: (data: any) => createBroadcast(data) };
 };

@@ -4,109 +4,75 @@ import { PageWrapper } from "@/components/ui/PageWrapper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Plus, Search, Radio, Send, Clock, CheckCircle } from "lucide-react";
 import { useGetBroadcasts } from "@/hooks/useApi";
 
 export default function BroadcastPage() {
-    const { data: broadcasts } = useGetBroadcasts();
+    const { data: broadcasts, isLoading } = useGetBroadcasts();
+    const router = useRouter();
+    const handleAddBroadcast = () => router.push("/broadcast/new");
 
     return (
         <PageWrapper
-            title="Broadcast"
+            title="Broadcasts"
             actions={
-                <Button>
+                <Button onClick={handleAddBroadcast}>
                     <Plus className="mr-2 h-4 w-4" /> New Broadcast
                 </Button>
             }
         >
-            <div className="grid gap-4 md:grid-cols-4 mb-6">
-                <Card className="border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">Total Campaigns</CardTitle>
-                        <Radio className="h-4 w-4 text-blue-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">12</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">Live</CardTitle>
-                        <Send className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">2</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">Sent</CardTitle>
-                        <CheckCircle className="h-4 w-4 text-purple-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">8</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">Scheduled</CardTitle>
-                        <Clock className="h-4 w-4 text-orange-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">2</div>
-                    </CardContent>
-                </Card>
-            </div>
-
             <Card className="border-none shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg">Campaigns</CardTitle>
+                    <CardTitle className="text-lg">Broadcasts</CardTitle>
                     <div className="w-64 relative">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                        <Input placeholder="Search campaigns..." className="pl-9" />
+                        <Input placeholder="Search broadcasts..." className="pl-9" />
                     </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Campaign Name</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead>Broadcast Name</TableHead>
+                                <TableHead>Template</TableHead>
+                                <TableHead>Total</TableHead>
                                 <TableHead>Sent</TableHead>
-                                <TableHead>Delivered</TableHead>
-                                <TableHead>Read</TableHead>
+                                <TableHead>Failed</TableHead>
+                                <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {broadcasts?.map((broadcast) => (
-                                <TableRow key={broadcast.id}>
-                                    <TableCell className="font-medium">{broadcast.name}</TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            variant={
-                                                broadcast.status === "Sent"
-                                                    ? "success"
-                                                    : broadcast.status === "Scheduled"
-                                                        ? "warning"
-                                                        : "default"
-                                            }
-                                        >
-                                            {broadcast.status}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>{broadcast.sent}</TableCell>
-                                    <TableCell>{broadcast.delivered}</TableCell>
-                                    <TableCell>{broadcast.read}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm">
-                                            View Report
-                                        </Button>
-                                    </TableCell>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">Loading broadcasts...</TableCell>
                                 </TableRow>
-                            ))}
+                            ) : broadcasts && broadcasts.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">No broadcasts found.</TableCell>
+                                </TableRow>
+                            ) : (
+                                broadcasts?.map((broadcast: any) => (
+                                    <TableRow key={broadcast.id}>
+                                        <TableCell className="font-medium">{broadcast.name}</TableCell>
+                                        <TableCell>{broadcast.template_name}</TableCell>
+                                        <TableCell>{broadcast.total}</TableCell>
+                                        <TableCell>{broadcast.sent}</TableCell>
+                                        <TableCell>{broadcast.failed}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={broadcast.status === 'completed' ? 'success' : 'warning'}>{broadcast.status}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="sm" onClick={() => router.push(`/broadcast/${broadcast.id}`)}>
+                                                View Report
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>

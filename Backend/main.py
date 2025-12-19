@@ -8,11 +8,12 @@ from config import settings
 
 app = FastAPI()
 
-# 2) Add CORS middleware
+# 2) Add CORS middleware (allow all origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN],
-    allow_credentials=True,
+    allow_origins=["*"],
+    # Note: browsers will ignore credentials if origin is '*'.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -363,4 +364,136 @@ async def send_template(req: TemplateRequest):
         except Exception as e:
             print(f"Unexpected error: {str(e)}")
             return {"success": False, "error": "Unexpected error", "details": {"message": str(e)}}
+
+
+# ----------------------- Broadcasts (new) -----------------------
+from uuid import uuid4
+import asyncio
+from datetime import datetime
+
+RATE_LIMIT_PER_SECOND = 1  # messages per second
+
+BROADCASTS = []  # In-memory store: each broadcast is a dict
+
+class BroadcastRequest(BaseModel):
+    name: str
+    phones: List[str]
+    template_name: str
+    template_id: Optional[str] = None
+    language_code: str = "en"
+    body_parameters: List[str] = []
+    header_parameters: List[str] = []
+    header_type: Optional[str] = None
+
+
+@app.post("/broadcasts")
+async def create_broadcast(req: BroadcastRequest):
+    if not req.phones or not req.template_name:
+        raise HTTPException(status_code=400, detail="Phones and template_name are required")
+
+    broadcast_id = str(uuid4())
+    broadcast = {
+        "id": broadcast_id,
+        "name": req.name,
+        "template_name": req.template_name,
+        "template_id": req.template_id,
+        "language_code": req.language_code,
+        "created_at": datetime.utcnow().isoformat(),
+        "recipients": [{"phone": p, "status": "pending", "details": None} for p in req.phones]
+    }
+
+    BROADCASTS.append(broadcast)
+
+    # Send messages respecting rate limits
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient() as client:
+        for idx, recipient in enumerate(broadcast["recipients"]):
+            phone = recipient["phone"]
+
+            components = []
+            if req.header_type:
+                header_params = []
+                if req.header_type == "TEXT":
+                    header_params = [{"type": "text", "text": p} for p in req.header_parameters]
+                elif req.header_type == "IMAGE" and req.header_parameters:
+                    header_params.append({"type": "image", "image": {"link": req.header_parameters[0]}})
+                if header_params:
+                    components.append({"type": "header", "parameters": header_params})
+
+            if req.body_parameters:
+                body_params = [{"type": "text", "text": p} for p in req.body_parameters]
+                components.append({"type": "body", "parameters": body_params})
+
+            payload = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": phone,
+                "type": "template",
+                "template": {
+                    "name": req.template_name,
+                    "language": {"code": req.language_code},
+                    "components": components
+                }
+            }
+
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                res_json = response.json()
+                recipient["status"] = "sent"
+                recipient["details"] = res_json
+            except httpx.HTTPStatusError as e:
+                print(f"Error sending to {phone}: {e.response.text}")
+                recipient["status"] = "failed"
+                try:
+                    recipient["details"] = e.response.json()
+                except Exception:
+                    recipient["details"] = {"error": e.response.text}
+            except Exception as e:
+                print(f"Unexpected error sending to {phone}: {str(e)}")
+                recipient["status"] = "failed"
+                recipient["details"] = {"error": str(e)}
+
+            # Rate limit between sends
+            await asyncio.sleep(1.0 / RATE_LIMIT_PER_SECOND)
+
+    # After sending all messages, return summary
+    sent = sum(1 for r in broadcast["recipients"] if r["status"] == "sent")
+    failed = sum(1 for r in broadcast["recipients"] if r["status"] == "failed")
+
+    return {"id": broadcast_id, "total": len(broadcast["recipients"]), "sent": sent, "failed": failed, "broadcast": broadcast}
+
+
+@app.get("/broadcasts")
+async def list_broadcasts():
+    summaries = []
+    for b in BROADCASTS:
+        sent = sum(1 for r in b["recipients"] if r["status"] == "sent")
+        failed = sum(1 for r in b["recipients"] if r["status"] == "failed")
+        pending = sum(1 for r in b["recipients"] if r["status"] == "pending")
+        summaries.append({
+            "id": b["id"],
+            "name": b["name"],
+            "template_name": b.get("template_name"),
+            "total": len(b["recipients"]),
+            "sent": sent,
+            "failed": failed,
+            "pending": pending,
+            "status": "completed" if pending == 0 else "in-progress",
+            "created_at": b.get("created_at")
+        })
+    return summaries
+
+
+@app.get("/broadcasts/{broadcast_id}")
+async def get_broadcast(broadcast_id: str):
+    for b in BROADCASTS:
+        if b["id"] == broadcast_id:
+            return b
+    raise HTTPException(status_code=404, detail="Broadcast not found")
 

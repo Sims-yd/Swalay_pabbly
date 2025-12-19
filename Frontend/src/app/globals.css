@@ -3,27 +3,65 @@
 @tailwind utilities;
 
 :root {
-  --background: #f5f7fa;
-  --foreground: #0f172a;
+  /* Light, vibrant theme */
+  --background: #fffefb; /* soft warm light */
+  --foreground: #0f172a; /* page text */
+
+  /* Primary (vibrant cyan) */
+  --primary: #06b6d4;
+  --primary-rgb: 6 182 212;
+  --primary-600: #0891b2;
+  --primary-foreground: #ffffff;
+
+  /* Secondary / Accent */
+  --secondary: #7c3aed;
+  --accent: #fb923c;
+
+  /* Surface / cards */
+  --muted: #f1f5f9; /* light surface */
+  --card: #ffffff; /* card bg */
+  --card-foreground: #0f172a;
+
+  --muted-text: #64748b;
+
+  /* scroll */
+  --scroll-thumb: rgba(var(--primary-rgb), 0.9);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
+    /* Force light theme even when OS prefers dark */
+    --background: #fffefb; /* same as light */
+    --foreground: #0f172a;
+
+    --primary: #06b6d4;
+    --primary-rgb: 6 182 212;
+    --primary-600: #0891b2;
+    --primary-foreground: #ffffff;
+
+    --secondary: #7c3aed;
+    --accent: #fb923c;
+
+    --muted: #f1f5f9;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+
+    --muted-text: #64748b;
+
+    --scroll-thumb: rgba(var(--primary-rgb), 0.9);
   }
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 }
 
-/* Custom Scrollbar */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -31,10 +69,48 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: var(--scroll-thumb);
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: rgba(var(--primary-rgb), 0.95);
 }
+
+/* Global semantic utility shortcuts and overrides to apply the new palette across existing Tailwind classes */
+@layer utilities {
+  /* semantic */
+  .bg-primary { background-color: var(--primary) }
+  .text-primary { color: var(--primary) }
+  .bg-card { background-color: var(--card) }
+  .text-card-foreground { color: var(--card-foreground) }
+  .bg-muted { background-color: var(--muted) }
+  .text-muted { color: var(--muted-text) }
+
+  /* small helpers */
+  .hover\\:bg-primary-600:hover { background-color: var(--primary-600) }
+}
+
+/* Override commonly used utility classes to adopt our light, vibrant theme globally */
+/* Use !important to ensure these show up even where explicit Tailwind classes were used */
+.bg-white { background-color: var(--card) !important; }
+.bg-gray-50, .bg-gray-100 { background-color: var(--muted) !important; }
+.text-gray-700 { color: var(--foreground) !important; }
+.text-gray-600, .text-gray-500 { color: var(--muted-text) !important; }
+/* Slate color aliases (map older slate classes to our muted/foreground tokens) */
+.text-slate-800, .text-slate-700 { color: var(--foreground) !important; }
+.text-slate-600, .text-slate-500, .text-slate-400 { color: var(--muted-text) !important; }
+.text-slate-300, .text-slate-200 { color: var(--card-foreground) !important; }
+
+/* Make blue utility classes represent our primary color so existing components that rely on blue highlight will become vibrant */
+.bg-blue-50 { background-color: rgba(var(--primary-rgb), .08) !important; }
+.text-blue-600 { color: var(--primary) !important; }
+.bg-blue-600 { background-color: var(--primary) !important; }
+.text-blue-100 { color: rgba(var(--primary-rgb), .9) !important; }
+
+/* Links and selections */
+a { color: var(--primary); }
+::selection { background: rgba(var(--primary-rgb), .18); color: var(--primary-foreground); }
+
+/* keep existing custom scrollbars consistent */
+

@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import Sidebar from '@/components/Sidebar';
 import ChatList from '@/components/ChatList';
-import ChatBox from '@/components/ChatBox';
+import ChatBox from '@/components/ui/ChatBox';
 
 export default function Home() {
     // Dummy Data
@@ -22,9 +21,8 @@ export default function Home() {
     const [selectedContact, setSelectedContact] = useState(contactsData[0]);
 
     return (
-        <main className="flex h-screen w-full overflow-hidden bg-[#0f172a]">
-            {/* Left Sidebar */}
-            <Sidebar />
+        <main className="flex h-screen w-full overflow-hidden bg-background">
+            {/* Sidebar provided by RootLayout */}
 
             {/* Middle Chat List */}
             <div className={`${selectedContact ? 'hidden md:flex' : 'flex'} w-full md:w-auto flex-shrink-0`}>
