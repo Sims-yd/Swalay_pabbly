@@ -3,8 +3,9 @@ from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal, Union
 from config import settings
+from models import MessageRequest, TemplateRequest, TemplateCreate
 
 app = FastAPI()
 
@@ -96,10 +97,6 @@ async def get_messages():
     return RECEIVED_MESSAGES
 
 # 5) Implement endpoint: POST /send-message
-class MessageRequest(BaseModel):
-    phone: str
-    message: str
-
 @app.post("/send-message")
 async def send_message(req: MessageRequest):
     if not req.phone or not req.message:
@@ -222,44 +219,50 @@ async def get_template(template_id: str):
             print(f"Unexpected error: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
-
-
 # 6.3) Implement endpoint: POST /templates/create (Create New)
-class TemplateCreate(BaseModel):
-    name: str
-    category: str
-    language: str
-    parameter_format: Optional[str] = "POSITIONAL" # NAMED or POSITIONAL
-    components: List[Dict[str, Any]]
-
 @app.post("/templates/create")
 async def create_template(req: TemplateCreate):
 
-    url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.META_BUSINESS_ID}/message_templates"
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_WABA_ID}/message_templates"
+    
     headers = {
         "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json",
     }
-    
-    payload = {
-        "name": req.name,
-        "category": req.category,
-        "language": req.language,
-        "parameter_format": req.parameter_format,
-        "components": req.components
-    }
+
+    payload = req.model_dump()
 
     async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload, headers=headers)
+
+        # Parse JSON safely
         try:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            return {"success": True, "data": response.json()}
-        except httpx.HTTPStatusError as e:
-             print(f"Error creating template: {e.response.text}")
-             raise HTTPException(status_code=400, detail=f"Failed to create template: {e.response.text}")
-        except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+            data = response.json()
+        except Exception:
+            data = {}
+
+        # ✅ SUCCESS CASES
+        if response.status_code in (200, 201):
+            return {
+                "success": True,
+                "message": "Template submitted successfully",
+                "data": data
+            }
+
+        # ⚠️ Meta sometimes returns error object with non-200 status
+        if "error" in data:
+            print("Meta error:", data["error"])
+            raise HTTPException(
+                status_code=400,
+                detail=data["error"]["message"]
+            )
+
+        # ❌ Fallback (unexpected)
+        raise HTTPException(
+            status_code=response.status_code,
+            detail="Failed to create template"
+        )
+
 
 @app.delete("/templates")
 async def delete_template(name: str):
@@ -289,14 +292,6 @@ async def delete_template(name: str):
             raise HTTPException(status_code=500, detail=str(e))
 
 # 7) Implement endpoint: POST /send-template
-class TemplateRequest(BaseModel):
-    phone: str
-    template_name: str
-    language_code: str = "en"
-    body_parameters: List[str] = []
-    header_parameters: List[str] = []  # For TEXT params or Media URLs
-    header_type: Optional[str] = None  # IMAGE, VIDEO, DOCUMENT, TEXT, or None
-
 @app.post("/send-template")
 async def send_template(req: TemplateRequest):
     if not req.phone or not req.template_name:

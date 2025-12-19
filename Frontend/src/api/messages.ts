@@ -62,6 +62,30 @@ export const sendTemplate = async (data: SendTemplateRequest) => {
     return response.json();
 };
 
+export interface BroadcastTemplateRequest {
+    phone_numbers: string[];
+    template_name: string;
+    language_code?: string;
+    body_parameters?: string[];
+    header_parameters?: string[];
+    header_type?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+}
+
+export const broadcastTemplate = async (data: BroadcastTemplateRequest) => {
+    const response = await fetch(`${BACKEND_URL}/broadcast-template`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to send broadcast');
+    }
+    return response.json();
+};
+
 export const getMessages = async (): Promise<ReceivedMessage[]> => {
     const response = await fetch(`${BACKEND_URL}/messages`);
     if (!response.ok) {
