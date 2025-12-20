@@ -264,27 +264,45 @@ async def create_template(req: TemplateCreate):
 
 @app.delete("/templates")
 async def delete_template(name: str):
-    # Meta API to delete by name: DELETE /{waba_id}/message_templates?name={name}
+    # Meta API to delete by name: DELETE /v18.0/{waba_id}/message_templates?name={name}
     url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_WABA_ID}/message_templates"
     headers = {
         "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
     }
     params = {"name": name}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.delete(url, headers=headers, params=params)
-            # Meta might return 200 even if not found, or error.
-            if response.status_code != 200:
-                 # Try deleting by ID if name fails? No, name is standard for WABA edge.
-                 # Let's check error
-                 print(f"Error deleting template: {response.text}")
-                 raise HTTPException(status_code=400, detail=f"Failed to delete template: {response.text}")
             
-            return {"success": True, "message": "Template deleted successfully"}
+            # Check status code first
+            if response.status_code in (200, 204):
+                # Try to parse JSON if available
+                data = {}
+                if response.text:
+                    try:
+                        data = response.json()
+                    except Exception:
+                        pass
+                
+                return {"success": True, "message": "Template deleted successfully", "data": data}
+            else:
+                # Handle error responses
+                try:
+                    error_data = response.json()
+                    detail = error_data.get("error", {}).get("message", response.text)
+                except Exception:
+                    detail = response.text
+                raise HTTPException(status_code=response.status_code, detail=detail)
+                
         except httpx.HTTPStatusError as e:
-             print(f"Error deleting template: {e.response.text}")
-             raise HTTPException(status_code=400, detail=f"Failed to delete template: {e.response.text}")
+            print(f"Error deleting template: {e.response.text}")
+            try:
+                error_data = e.response.json()
+                detail = error_data.get("error", {}).get("message", e.response.text)
+            except Exception:
+                detail = e.response.text
+            raise HTTPException(status_code=e.response.status_code, detail=detail)
         except Exception as e:
             print(f"Unexpected error: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
