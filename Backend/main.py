@@ -1,26 +1,206 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import PlainTextResponse
-from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+from datetime import datetime, timedelta
+from typing import Optional
+from uuid import uuid4
+
 import httpx
+from bson import ObjectId
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from motor.motor_asyncio import AsyncIOMotorClient
+from passlib.context import CryptContext
+from pymongo.errors import DuplicateKeyError
+
+
 from config import settings
-from models import MessageRequest, TemplateRequest, TemplateCreate, BroadcastRequest
+from models import (
+    BroadcastRequest,
+    MessageRequest,
+    TemplateCreate,
+    TemplateRequest,
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserPublic,
+)
 
 app = FastAPI()
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+TOKEN_COOKIE_NAME = "access_token"
 
-# 2) Add CORS middleware (allow all origins)
+allowed_origins = [o.strip() for o in settings.FRONTEND_ORIGIN.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    # Note: browsers will ignore credentials if origin is '*'.
-    allow_credentials=False,
+    allow_origins=allowed_origins or [],
+    allow_origin_regex=r"https?://.*",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_db_client():
+    app.state.mongo_client = AsyncIOMotorClient(settings.MONGODB_URI)
+    app.state.db = app.state.mongo_client[settings.MONGODB_DB_NAME]
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    mongo_client = getattr(app.state, "mongo_client", None)
+    if mongo_client:
+        mongo_client.close()
+
+
+async def get_db(request: Request):
+    db = getattr(request.app.state, "db", None)
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+    return db
+
+
+def sanitize_user(user_doc) -> UserPublic:
+    return UserPublic(
+        id=str(user_doc["_id"]),
+        email=user_doc["email"],
+        created_at=user_doc["created_at"],
+    )
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(password, hashed_password)
+
+
+def create_access_token(subject: str, email: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRES_IN_MINUTES)
+    to_encode = {"sub": subject, "email": email, "exp": expire}
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return encoded_jwt
+
+async def get_user_by_email(email: str, db):
+    return await db["users"].find_one({"email": email})
+
+
+async def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme)) -> UserPublic:
+    raw_token = token
+    if not raw_token:
+        raw_token = request.cookies.get(TOKEN_COOKIE_NAME)
+
+    if not raw_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    try:
+        payload = jwt.decode(raw_token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        email: str = payload.get("email")
+        if user_id is None or email is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    db = await get_db(request)
+    try:
+        object_id = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    user = await db["users"].find_one({"_id": object_id})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    return sanitize_user(user)
+
+
+async def authenticate_user(email: str, password: str, db):
+    user = await get_user_by_email(email, db)
+    if not user:
+        return None
+    if not verify_password(password, user["hashed_password"]):
+        return None
+    return user
+
+
+def set_auth_cookie(response: JSONResponse, token: str):
+    response.set_cookie(
+        key=TOKEN_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
+        max_age=settings.JWT_EXPIRES_IN_MINUTES * 60,
+        path="/",
+    )
 
 # 4) Implement endpoint: GET /health
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "whatsapp-backend"}
+
+
+@app.post("/auth/signup", response_model=TokenResponse)
+async def signup(payload: UserCreate, request: Request):
+    db = await get_db(request)
+    existing = await get_user_by_email(payload.email, db)
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    user_doc = {
+        "email": payload.email,
+        "hashed_password": hash_password(payload.password),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+
+    try:
+        result = await db["users"].insert_one(user_doc)
+    except DuplicateKeyError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    user_doc["_id"] = result.inserted_id
+    token = create_access_token(str(result.inserted_id), payload.email)
+    response = JSONResponse({
+        "access_token": token,
+        "token_type": "bearer",
+        "user": sanitize_user(user_doc).model_dump(),
+    })
+    set_auth_cookie(response, token)
+    return response
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+async def login(payload: UserLogin, request: Request):
+    db = await get_db(request)
+    user = await authenticate_user(payload.email, payload.password, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    token = create_access_token(str(user["_id"]), user["email"])
+    response = JSONResponse({
+        "access_token": token,
+        "token_type": "bearer",
+        "user": sanitize_user(user).model_dump(),
+    })
+    set_auth_cookie(response, token)
+    return response
+
+
+@app.get("/auth/me", response_model=UserPublic)
+async def get_me(current_user: UserPublic = Depends(get_current_user)):
+    return current_user
+
+
+@app.post("/auth/logout")
+async def logout():
+    response = JSONResponse({"detail": "Logged out"})
+    response.delete_cookie(key=TOKEN_COOKIE_NAME, path="/")
+    return response
 
 # 1) Preserve and slightly harden the existing webhook
 # In-memory storage for received messages
@@ -91,12 +271,14 @@ async def webhook_received(request: Request):
     return {"status": "ok"}
 
 @app.get("/messages")
-async def get_messages():
+async def get_messages(current_user: UserPublic = Depends(get_current_user)):
     return RECEIVED_MESSAGES
 
 # 5) Implement endpoint: POST /send-message
 @app.post("/send-message")
-async def send_message(req: MessageRequest):
+async def send_message(
+    req: MessageRequest, current_user: UserPublic = Depends(get_current_user)
+):
     if not req.phone or not req.message:
         raise HTTPException(status_code=400, detail="Phone and message are required")
 
@@ -130,7 +312,7 @@ async def send_message(req: MessageRequest):
 
 # 6) Implement endpoint: GET /templates
 @app.get("/templates")
-async def get_templates():
+async def get_templates(current_user: UserPublic = Depends(get_current_user)):
     url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_WABA_ID}/message_templates"
     headers = {
         "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
@@ -199,7 +381,9 @@ async def get_templates():
 
 # 6.1) Implement endpoint: GET /templates/{template_id}
 @app.get("/templates/{template_id}")
-async def get_template(template_id: str):
+async def get_template(
+    template_id: str, current_user: UserPublic = Depends(get_current_user)
+):
     url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{template_id}"
     headers = {
         "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
@@ -219,7 +403,9 @@ async def get_template(template_id: str):
 
 # 6.3) Implement endpoint: POST /templates/create (Create New)
 @app.post("/templates/create")
-async def create_template(req: TemplateCreate):
+async def create_template(
+    req: TemplateCreate, current_user: UserPublic = Depends(get_current_user)
+):
 
     url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_WABA_ID}/message_templates"
     
@@ -263,7 +449,7 @@ async def create_template(req: TemplateCreate):
 
 
 @app.delete("/templates")
-async def delete_template(name: str):
+async def delete_template(name: str, current_user: UserPublic = Depends(get_current_user)):
     # Meta API to delete by name: DELETE /v18.0/{waba_id}/message_templates?name={name}
     url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_WABA_ID}/message_templates"
     headers = {
@@ -307,9 +493,7 @@ async def delete_template(name: str):
             print(f"Unexpected error: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
-# 7) Implement endpoint: POST /send-template
-@app.post("/send-template")
-async def send_template(req: TemplateRequest):
+async def send_template_message(req: TemplateRequest):
     if not req.phone or not req.template_name:
         raise HTTPException(status_code=400, detail="Phone and template name are required")
 
@@ -321,34 +505,23 @@ async def send_template(req: TemplateRequest):
 
     components = []
 
-    # 1) Handle Header
     if req.header_type:
         header_params = []
         if req.header_type == "TEXT":
-             header_params = [{"type": "text", "text": p} for p in req.header_parameters]
-        elif req.header_type == "IMAGE":
-             if req.header_parameters:
-                 header_params.append({"type": "image", "image": {"link": req.header_parameters[0]}})
-        elif req.header_type == "VIDEO":
-             if req.header_parameters:
-                 header_params.append({"type": "video", "video": {"link": req.header_parameters[0]}})
-        elif req.header_type == "DOCUMENT":
-             if req.header_parameters:
-                 header_params.append({"type": "document", "document": {"link": req.header_parameters[0]}})
+            header_params = [{"type": "text", "text": p} for p in req.header_parameters]
+        elif req.header_type == "IMAGE" and req.header_parameters:
+            header_params.append({"type": "image", "image": {"link": req.header_parameters[0]}})
+        elif req.header_type == "VIDEO" and req.header_parameters:
+            header_params.append({"type": "video", "video": {"link": req.header_parameters[0]}})
+        elif req.header_type == "DOCUMENT" and req.header_parameters:
+            header_params.append({"type": "document", "document": {"link": req.header_parameters[0]}})
 
         if header_params:
-            components.append({
-                "type": "header",
-                "parameters": header_params
-            })
+            components.append({"type": "header", "parameters": header_params})
 
-    # 2) Handle Body
     if req.body_parameters:
         body_params = [{"type": "text", "text": p} for p in req.body_parameters]
-        components.append({
-            "type": "body",
-            "parameters": body_params
-        })
+        components.append({"type": "body", "parameters": body_params})
 
     payload = {
         "messaging_product": "whatsapp",
@@ -357,11 +530,9 @@ async def send_template(req: TemplateRequest):
         "type": "template",
         "template": {
             "name": req.template_name,
-            "language": {
-                "code": req.language_code
-            },
-            "components": components
-        }
+            "language": {"code": req.language_code},
+            "components": components,
+        },
     }
 
     async with httpx.AsyncClient() as client:
@@ -377,10 +548,15 @@ async def send_template(req: TemplateRequest):
             return {"success": False, "error": "Unexpected error", "details": {"message": str(e)}}
 
 
+# 7) Implement endpoint: POST /send-template
+@app.post("/send-template")
+async def send_template(
+    req: TemplateRequest, current_user: UserPublic = Depends(get_current_user)
+):
+    return await send_template_message(req)
+
+
 # ----------------------- Broadcasts (new) -----------------------
-from uuid import uuid4
-import asyncio
-from datetime import datetime
 
 RATE_LIMIT_PER_SECOND = 1  # messages per second
 
@@ -388,7 +564,9 @@ BROADCASTS = []  # In-memory store: each broadcast is a dict
 
 
 @app.post("/broadcasts")
-async def create_broadcast(req: BroadcastRequest):
+async def create_broadcast(
+    req: BroadcastRequest, current_user: UserPublic = Depends(get_current_user)
+):
     if not req.phones or not req.template_name:
         raise HTTPException(status_code=400, detail="Phones and template_name are required")
 
@@ -417,7 +595,7 @@ async def create_broadcast(req: BroadcastRequest):
                 header_type=req.header_type
             )
 
-            res = await send_template(template_req)
+            res = await send_template_message(template_req)
 
             if isinstance(res, dict) and res.get("success"):
                 recipient["status"] = "sent"
@@ -442,7 +620,7 @@ async def create_broadcast(req: BroadcastRequest):
 
 
 @app.get("/broadcasts")
-async def list_broadcasts():
+async def list_broadcasts(current_user: UserPublic = Depends(get_current_user)):
     summaries = []
     for b in BROADCASTS:
         sent = sum(1 for r in b["recipients"] if r["status"] == "sent")
@@ -463,7 +641,9 @@ async def list_broadcasts():
 
 
 @app.get("/broadcasts/{broadcast_id}")
-async def get_broadcast(broadcast_id: str):
+async def get_broadcast(
+    broadcast_id: str, current_user: UserPublic = Depends(get_current_user)
+):
     for b in BROADCASTS:
         if b["id"] == broadcast_id:
             return b

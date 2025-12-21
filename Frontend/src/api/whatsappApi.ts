@@ -31,7 +31,9 @@ export interface SendTemplatePayload {
 }
 
 export const getTemplates = async (): Promise<Template[]> => {
-    const response = await fetch(`${BACKEND_URL}/templates`);
+    const response = await fetch(`${BACKEND_URL}/templates`, {
+        credentials: 'include',
+    });
     if (!response.ok) {
         throw new Error('Failed to fetch templates');
     }
@@ -39,7 +41,9 @@ export const getTemplates = async (): Promise<Template[]> => {
 };
 
 export const getHealth = async () => {
-    const response = await fetch(`${BACKEND_URL}/health`);
+    const response = await fetch(`${BACKEND_URL}/health`, {
+        credentials: 'include',
+    });
     if (!response.ok) {
         throw new Error('Failed to check health');
     }
@@ -52,6 +56,7 @@ export const sendMessage = async (payload: SendMessagePayload) => {
         headers: {
             'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(payload),
     });
     if (!response.ok) {
@@ -67,6 +72,7 @@ export const sendTemplate = async (payload: SendTemplatePayload) => {
         headers: {
             'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(payload),
     });
     if (!response.ok) {

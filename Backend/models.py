@@ -1,5 +1,26 @@
 from typing import List, Optional, Literal, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserPublic(BaseModel):
+    id: str
+    email: EmailStr
+    created_at: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 
 class MessageRequest(BaseModel):
     phone: str
