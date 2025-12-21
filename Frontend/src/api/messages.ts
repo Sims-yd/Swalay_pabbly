@@ -38,6 +38,7 @@ export const sendMessage = async (data: SendMessageRequest) => {
         headers: {
             'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -53,6 +54,7 @@ export const sendTemplate = async (data: SendTemplateRequest) => {
         headers: {
             'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -77,6 +79,7 @@ export const broadcastTemplate = async (data: BroadcastTemplateRequest) => {
         headers: {
             'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -87,7 +90,9 @@ export const broadcastTemplate = async (data: BroadcastTemplateRequest) => {
 };
 
 export const getMessages = async (): Promise<ReceivedMessage[]> => {
-    const response = await fetch(`${BACKEND_URL}/messages`);
+    const response = await fetch(`${BACKEND_URL}/messages`, {
+        credentials: 'include',
+    });
     if (!response.ok) {
         throw new Error('Failed to fetch messages');
     }

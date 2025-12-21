@@ -18,7 +18,9 @@ export interface Template {
 }
 
 export const fetchTemplates = async (): Promise<Template[]> => {
-    const response = await fetch(`${BACKEND_URL}/templates`);
+    const response = await fetch(`${BACKEND_URL}/templates`, {
+        credentials: 'include',
+    });
     if (!response.ok) {
         throw new Error('Failed to fetch templates');
     }
@@ -26,7 +28,9 @@ export const fetchTemplates = async (): Promise<Template[]> => {
 };
 
 export const getTemplate = async (id: string): Promise<Template> => {
-    const response = await fetch(`${BACKEND_URL}/templates/${id}`);
+    const response = await fetch(`${BACKEND_URL}/templates/${id}`, {
+        credentials: 'include',
+    });
     if (!response.ok) {
         throw new Error('Failed to fetch template');
     }
@@ -37,6 +41,7 @@ export const createTemplate = async (data: any): Promise<any> => {
     const response = await fetch(`${BACKEND_URL}/templates/create`, {
         method: 'POST',
         headers: {
+        credentials: 'include',
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(data),
@@ -50,6 +55,7 @@ export const createTemplate = async (data: any): Promise<any> => {
 
 export const deleteTemplate = async (name: string): Promise<{ success: boolean; message: string }> => {
     const response = await fetch(`${BACKEND_URL}/templates?name=${encodeURIComponent(name)}`, {
+        credentials: 'include',
         method: 'DELETE',
     });
     if (!response.ok) {

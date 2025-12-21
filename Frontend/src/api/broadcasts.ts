@@ -15,6 +15,7 @@ export const createBroadcast = async (data: BroadcastCreateRequest) => {
     const response = await fetch(`${BACKEND_URL}/broadcasts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -25,13 +26,17 @@ export const createBroadcast = async (data: BroadcastCreateRequest) => {
 };
 
 export const getBroadcasts = async () => {
-    const response = await fetch(`${BACKEND_URL}/broadcasts`);
+    const response = await fetch(`${BACKEND_URL}/broadcasts`, {
+        credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch broadcasts');
     return response.json();
 };
 
 export const getBroadcast = async (id: string) => {
-    const response = await fetch(`${BACKEND_URL}/broadcasts/${id}`);
+    const response = await fetch(`${BACKEND_URL}/broadcasts/${id}`, {
+        credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch broadcast');
     return response.json();
 };
