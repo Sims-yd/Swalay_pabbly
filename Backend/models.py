@@ -61,3 +61,13 @@ class BroadcastRequest(BaseModel):
     body_parameters: List[str] = []
     header_parameters: List[str] = []
     header_type: Optional[str] = None
+
+class Message(BaseModel):
+    id: str
+    contact_id: str
+    direction: Literal["incoming", "outgoing"]
+    type: str
+    text: Optional[str] = None
+    status: Optional[str] = None
+    timestamp: str
+    raw: Optional[dict] = None

@@ -203,8 +203,7 @@ async def logout():
     return response
 
 # 1) Preserve and slightly harden the existing webhook
-# In-memory storage for received messages
-RECEIVED_MESSAGES = []
+# MongoDB collection: "messages"
 
 @app.get("/webhook")
 async def verify(request: Request):
@@ -219,6 +218,7 @@ async def verify(request: Request):
 
 @app.post("/webhook")
 async def webhook_received(request: Request):
+    db = await get_db(request)
     try:
         data = await request.json()
         print("RAW DATA =", data)
@@ -232,38 +232,50 @@ async def webhook_received(request: Request):
                         # Handle Incoming Messages
                         if value.get("messages"):
                             for msg in value["messages"]:
+                                contact_id = msg.get("from")
                                 message_data = {
                                     "type": "message",
                                     "direction": "incoming",
-                                    "from": msg.get("from"),
+                                    "contact_id": contact_id,
                                     "id": msg.get("id"),
                                     "timestamp": msg.get("timestamp"),
                                     "text": msg.get("text", {}).get("body"),
                                     "msg_type": msg.get("type"),
+                                    "status": "received",
                                     "raw": msg
                                 }
                                 # Add contact info if available
                                 if value.get("contacts"):
                                     message_data["contact"] = value["contacts"][0]
                                     
-                                RECEIVED_MESSAGES.append(message_data)
+                                # Upsert message to avoid duplicates
+                                await db["messages"].update_one(
+                                    {"id": msg.get("id")},
+                                    {"$set": message_data},
+                                    upsert=True
+                                )
 
                         # Handle Status Updates (Sent, Delivered, Read)
                         if value.get("statuses"):
                             for status in value["statuses"]:
-                                status_data = {
-                                    "type": "status",
-                                    "id": status.get("id"),
-                                    "status": status.get("status"),
-                                    "timestamp": status.get("timestamp"),
-                                    "recipient_id": status.get("recipient_id"),
-                                    "raw": status
-                                }
-                                RECEIVED_MESSAGES.append(status_data)
-
-                        # Keep only last 100 events
-                        if len(RECEIVED_MESSAGES) > 100:
-                            RECEIVED_MESSAGES.pop(0)
+                                msg_id = status.get("id")
+                                new_status = status.get("status")
+                                timestamp = status.get("timestamp")
+                                
+                                # Update the existing message's status
+                                await db["messages"].update_one(
+                                    {"id": msg_id},
+                                    {
+                                        "$set": {"status": new_status},
+                                        "$push": {
+                                            "status_history": {
+                                                "status": new_status,
+                                                "timestamp": timestamp,
+                                                "raw": status
+                                            }
+                                        }
+                                    }
+                                )
                                 
     except Exception as e:
         print(f"⚠️ Error processing webhook: {e}")
@@ -271,13 +283,33 @@ async def webhook_received(request: Request):
     return {"status": "ok"}
 
 @app.get("/messages")
-async def get_messages(current_user: UserPublic = Depends(get_current_user)):
-    return RECEIVED_MESSAGES
+async def get_messages(current_user: UserPublic = Depends(get_current_user), request: Request = None):
+    # Note: request is needed to get db, but Depends(get_current_user) already gets db internally?
+    # Actually get_current_user uses get_db but doesn't return it.
+    # We need to inject Request to get db.
+    # But FastAPI dependency injection handles it if we ask for it.
+    # However, `get_messages` signature needs `request: Request`.
+    # Let's add it.
+    pass
+
+# We need to redefine get_messages to accept Request
+@app.get("/messages")
+async def get_messages(request: Request, current_user: UserPublic = Depends(get_current_user)):
+    db = await get_db(request)
+    cursor = db["messages"].find().sort("timestamp", 1).limit(500) # Limit to last 500 for now
+    messages = await cursor.to_list(length=500)
+    
+    # Convert ObjectId to str if needed (though we aren't returning _id usually, but let's be safe)
+    for msg in messages:
+        if "_id" in msg:
+            msg["_id"] = str(msg["_id"])
+            
+    return messages
 
 # 5) Implement endpoint: POST /send-message
 @app.post("/send-message")
 async def send_message(
-    req: MessageRequest, current_user: UserPublic = Depends(get_current_user)
+    req: MessageRequest, request: Request, current_user: UserPublic = Depends(get_current_user)
 ):
     if not req.phone or not req.message:
         raise HTTPException(status_code=400, detail="Phone and message are required")
@@ -302,7 +334,28 @@ async def send_message(
         try:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
-            return {"success": True, "whatsapp_response": response.json()}
+            resp_data = response.json()
+            
+            # Store the sent message so it appears in the chat
+            msg_id = resp_data.get("messages", [{}])[0].get("id")
+            
+            if msg_id:
+                db = await get_db(request)
+                sent_msg = {
+                    "type": "message",
+                    "direction": "outgoing",
+                    "contact_id": req.phone, # Partition key
+                    "recipient_id": req.phone,
+                    "id": msg_id,
+                    "timestamp": str(int(datetime.utcnow().timestamp())),
+                    "text": req.message,
+                    "msg_type": "text",
+                    "status": "sent",
+                    "raw": resp_data
+                }
+                await db["messages"].insert_one(sent_msg)
+
+            return {"success": True, "whatsapp_response": resp_data}
         except httpx.HTTPStatusError as e:
             print(f"Error sending message: {e.response.text}")
             return {"success": False, "error": "Failed to send message", "details": e.response.json()}

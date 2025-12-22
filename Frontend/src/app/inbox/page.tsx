@@ -1,7 +1,7 @@
 "use client";
 
 import { PageWrapper } from "@/components/ui/PageWrapper";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Search, Send, Check, CheckCheck, User } from "lucide-react";
@@ -50,12 +50,53 @@ export default function InboxPage() {
 
     const processMessages = (msgs: ReceivedMessage[]) => {
         const convMap = new Map<string, Conversation>();
+        const messageMap = new Map<string, ReceivedMessage>();
 
-        // Sort messages by timestamp
-        const sortedMsgs = [...msgs].sort((a, b) => parseInt(a.timestamp) - parseInt(b.timestamp));
+        // 1. First pass: Collect all actual messages
+        msgs.forEach(msg => {
+            if (msg.type === 'message') {
+                // Create a copy to avoid mutating the original if needed, 
+                // though here we are building fresh state.
+                messageMap.set(msg.id, { ...msg });
+            }
+        });
 
-        sortedMsgs.forEach(msg => {
-            const contactId = msg.type === 'message' ? msg.from! : msg.recipient_id!;
+        // 2. Second pass: Apply statuses to messages
+        msgs.forEach(msg => {
+            if (msg.type === 'status') {
+                const targetMsg = messageMap.get(msg.id);
+                if (targetMsg) {
+                    // Update status. 
+                    // WhatsApp order: sent -> delivered -> read
+                    // We assume the backend sends them in order or we just take the latest?
+                    // Let's use a simple priority check to avoid overwriting 'read' with 'delivered' 
+                    // if events arrive out of order.
+                    const statusPriority: Record<string, number> = {
+                        'sent': 1,
+                        'delivered': 2,
+                        'read': 3,
+                        'failed': 4
+                    };
+
+                    const currentStatus = targetMsg.status;
+                    const newStatus = msg.status;
+
+                    const currentPriority = currentStatus ? (statusPriority[currentStatus] || 0) : 0;
+                    const newPriority = newStatus ? (statusPriority[newStatus] || 0) : 0;
+
+                    if (newPriority > currentPriority) {
+                        targetMsg.status = newStatus;
+                    }
+                }
+            }
+        });
+
+        // 3. Group into conversations
+        messageMap.forEach(msg => {
+            // Determine contact ID
+            // If incoming, from is the contact.
+            // If outgoing, recipient_id is the contact.
+            const contactId = msg.direction === 'outgoing' ? msg.recipient_id : msg.from;
 
             if (!contactId) return;
 
@@ -71,25 +112,27 @@ export default function InboxPage() {
             }
 
             const conv = convMap.get(contactId)!;
+            conv.messages.push(msg);
 
-            // Deduplicate based on ID
-            if (!conv.messages.find(m => m.id === msg.id)) {
-                conv.messages.push(msg);
-            }
-
-            // Update last message info
-            if (msg.type === 'message') {
+            // Update conversation metadata based on the latest message
+            const msgTimestamp = parseInt(msg.timestamp);
+            if (msgTimestamp > conv.timestamp) {
+                conv.timestamp = msgTimestamp;
                 conv.lastMessage = msg.text || `[${msg.msg_type}]`;
-                conv.timestamp = parseInt(msg.timestamp);
-                // Update name if available
                 if (msg.contact?.profile?.name) {
                     conv.name = msg.contact.profile.name;
                 }
             }
         });
 
-        // Convert map to array and sort by last message timestamp
+        // Convert map to array and sort conversations by timestamp
         const convArray = Array.from(convMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+
+        // Sort messages within each conversation
+        convArray.forEach(conv => {
+            conv.messages.sort((a, b) => parseInt(a.timestamp) - parseInt(b.timestamp));
+        });
+
         setConversations(convArray);
     };
 
@@ -120,7 +163,7 @@ export default function InboxPage() {
             case 'sent': return <Check className="h-3 w-3 text-gray-400" />;
             case 'delivered': return <CheckCheck className="h-3 w-3 text-gray-400" />;
             case 'read': return <CheckCheck className="h-3 w-3 text-blue-500" />;
-            default: return null;
+            default: return null; // No icon for unknown or pending
         }
     };
 
@@ -174,28 +217,17 @@ export default function InboxPage() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-gray-900/50">
-                                {selectedConversation?.messages.map((msg, idx) => {
-                                    if (msg.type === 'message') {
-                                        return (
-                                            <div key={idx} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[70%] rounded-lg p-3 ${msg.direction === 'outgoing' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 border'}`}>
-                                                    <p className="text-sm">{msg.text || `[${msg.msg_type}]`}</p>
-                                                    <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${msg.direction === 'outgoing' ? 'text-blue-100' : 'text-gray-400'}`}>
-                                                        {formatTime(msg.timestamp)}
-                                                    </div>
-                                                </div>
+                                {selectedConversation?.messages.map((msg, idx) => (
+                                    <div key={idx} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[70%] rounded-lg p-3 ${msg.direction === 'outgoing' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 border'}`}>
+                                            <p className="text-sm">{msg.text || `[${msg.msg_type}]`}</p>
+                                            <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${msg.direction === 'outgoing' ? 'text-blue-100' : 'text-gray-400'}`}>
+                                                {formatTime(msg.timestamp)}
+                                                {msg.direction === 'outgoing' && getStatusIcon(msg.status)}
                                             </div>
-                                        );
-                                    } else if (msg.type === 'status') {
-                                        return (
-                                            <div key={idx} className="flex justify-center">
-                                                <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-                                                    Message {msg.status} at {formatTime(msg.timestamp)}
-                                                </span>
-                                            </div>
-                                        );
-                                    }
-                                })}
+                                        </div>
+                                    </div>
+                                ))}
                                 <div ref={messagesEndRef} />
                             </div>
 
