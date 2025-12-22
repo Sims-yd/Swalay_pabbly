@@ -7,14 +7,11 @@ import {
     Smile,
     Mic,
     Send,
+    Check,
     CheckCheck
 } from 'lucide-react';
-
-interface Message {
-    sender: string;
-    text: string;
-    time?: string;
-}
+import { useWebSocketMessages } from '@/hooks/useWebSocketMessages';
+import { Message, sendMessage as sendMessageAPI, getMessages } from '@/api/messages';
 
 interface Contact {
     name: string;
@@ -23,12 +20,13 @@ interface Contact {
 
 interface ChatBoxProps {
     contact: Contact | null;
-    initialMessages: Message[];
+    userId: string | null;  // Current user's ID for WebSocket
 }
 
-const ChatBox: React.FC<ChatBoxProps> = ({ contact, initialMessages }) => {
-    const [messages, setMessages] = useState<Message[]>(initialMessages);
+const ChatBox: React.FC<ChatBoxProps> = ({ contact, userId }) => {
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -37,30 +35,144 @@ const ChatBox: React.FC<ChatBoxProps> = ({ contact, initialMessages }) => {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, contact]);
+    }, [messages]);
 
-    // Reset messages when contact changes (for demo purposes, usually you'd fetch new messages)
+    // Load initial messages when contact changes
     useEffect(() => {
-        setMessages(initialMessages);
-    }, [contact, initialMessages]);
+        if (!contact?.phone) {
+            setMessages([]);
+            return;
+        }
 
-    const handleSend = () => {
-        if (!inputText.trim()) return;
-
-        const newMessage: Message = {
-            sender: "me",
-            text: inputText,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        const loadMessages = async () => {
+            try {
+                const fetchedMessages = await getMessages(contact.phone);
+                setMessages(fetchedMessages);
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+            }
         };
 
-        setMessages([...messages, newMessage]);
+        loadMessages();
+    }, [contact?.phone]);
+
+    // WebSocket integration
+    const { isConnected } = useWebSocketMessages({
+        userId,
+        chatId: contact?.phone,
+        onNewMessage: (message) => {
+            // Add new message to state if it belongs to current chat
+            if (message.chatId === contact?.phone) {
+                setMessages(prev => {
+                    // Avoid duplicates
+                    if (prev.some(m => m.id === message.id)) {
+                        return prev;
+                    }
+                    return [...prev, message];
+                });
+            }
+        },
+        onStatusUpdate: (data) => {
+            // Update message status in state
+            setMessages(prev => prev.map(msg => 
+                msg.id === data.messageId || msg.whatsappMessageId === data.messageId
+                    ? { ...msg, status: data.status as Message['status'] }
+                    : msg
+            ));
+        },
+    });
+
+    const handleSend = async () => {
+        if (!inputText.trim() || !contact?.phone || isSending) return;
+
+        const messageText = inputText.trim();
         setInputText('');
+        setIsSending(true);
+
+        try {
+            // Send message via API
+            const response = await sendMessageAPI({
+                phone: contact.phone,
+                message: messageText,
+            });
+
+            console.log('Send message response:', response);
+
+            if (response.success && response.message) {
+                // Add the message directly from the response
+                const newMessage: Message = {
+                    id: response.message.id,
+                    chatId: response.message.chatId,
+                    senderId: response.message.senderId,
+                    receiverId: response.message.receiverId,
+                    text: response.message.text,
+                    status: response.message.status as Message['status'],
+                    createdAt: response.message.createdAt,
+                    updatedAt: response.message.updatedAt,
+                    whatsappMessageId: response.message.whatsappMessageId,
+                };
+
+                setMessages(prev => {
+                    // Check if message already exists
+                    if (prev.some(m => m.id === newMessage.id)) {
+                        return prev;
+                    }
+                    return [...prev, newMessage];
+                });
+            } else {
+                // If sending failed, show error
+                console.error('Message send failed:', response);
+                alert('Failed to send message: ' + (response.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            alert('Failed to send message. Please try again.');
+        } finally {
+            setIsSending(false);
+        }
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
+        }
+    };
+
+    const getStatusIcon = (status: Message['status']) => {
+        switch (status) {
+            case 'sending':
+                return (
+                    <span className="flex items-center justify-center opacity-50" title="Sending...">
+                        <Check size={16} strokeWidth={2.5} />
+                    </span>
+                );
+            case 'sent':
+                return (
+                    <span className="flex items-center justify-center" title="Sent">
+                        <Check size={16} strokeWidth={2.5} />
+                    </span>
+                );
+            case 'delivered':
+                return (
+                    <span className="flex items-center justify-center" title="Delivered">
+                        <CheckCheck size={16} strokeWidth={2.5} />
+                    </span>
+                );
+            case 'read':
+                return (
+                    <span className="flex items-center justify-center text-blue-400" title="Read">
+                        <CheckCheck size={16} strokeWidth={2.5} />
+                    </span>
+                );
+            case 'failed':
+                return (
+                    <span className="flex items-center justify-center text-red-400" title="Failed">
+                        <span className="text-xs font-bold">✕</span>
+                    </span>
+                );
+            default:
+                return null;
         }
     };
 
@@ -82,7 +194,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ contact, initialMessages }) => {
                     </div>
                     <div>
                         <h2 className="text-sm font-semibold text-card-foreground">{contact.name}</h2>
-                        <p className="text-xs text-muted">WhatsApp Number</p>
+                        <p className="text-xs text-muted">
+                            {isConnected ? '🟢 Connected' : '🔴 Connecting...'}
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center space-x-4 text-muted">
@@ -101,22 +215,26 @@ const ChatBox: React.FC<ChatBoxProps> = ({ contact, initialMessages }) => {
                     </span>
                 </div>
 
-                {messages.map((msg, index) => {
-                    const isMe = msg.sender === "me";
+                {messages.map((msg) => {
+                    const isMe = msg.senderId === userId;
                     return (
-                        <div key={index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <div
-                                className={`max-w-[70%] md:max-w-[60%] rounded-lg px-4 py-2 relative shadow-sm ${isMe
+                                className={`max-w-[70%] md:max-w-[60%] rounded-lg px-3 py-2 relative shadow-sm ${isMe
                                     ? 'bg-green-600 text-white rounded-tr-none'
                                     : 'bg-card text-card-foreground border rounded-tl-none'
                                     }`}
                             >
-                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                                <div className={`flex items-center justify-end space-x-1 mt-1 ${isMe ? 'text-green-200' : 'text-muted'}`}>
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap pr-2">{msg.text}</p>
+                                <div className={`flex items-center justify-end space-x-1 mt-1 ${isMe ? 'text-white/70' : 'text-muted'}`}>
                                     <span className="text-[10px]">
-                                        {msg.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
-                                    {isMe && <CheckCheck size={12} />}
+                                    {isMe && (
+                                        <span className="inline-flex items-center ml-1">
+                                            {getStatusIcon(msg.status)}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -144,13 +262,15 @@ const ChatBox: React.FC<ChatBoxProps> = ({ contact, initialMessages }) => {
                             className="w-full bg-transparent text-card-foreground px-4 py-3 max-h-32 focus:outline-none resize-none scrollbar-hide text-sm"
                             rows={1}
                             style={{ minHeight: '46px' }}
+                            disabled={isSending}
                         />
                     </div>
 
                     {inputText.trim() ? (
                         <button
                             onClick={handleSend}
-                            className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-full transition-all transform hover:scale-105 shadow-lg"
+                            disabled={isSending}
+                            className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-full transition-all transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Send size={20} className="ml-0.5" />
                         </button>

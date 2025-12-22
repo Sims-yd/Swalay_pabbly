@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Search, Send, Check, CheckCheck, User } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { getMessages, ReceivedMessage, sendMessage } from "@/api/messages";
+import { getLegacyMessages, ReceivedMessage, sendMessage } from "@/api/messages";
 
 interface Conversation {
     contactId: string;
@@ -40,7 +40,7 @@ export default function InboxPage() {
 
     const loadMessages = async () => {
         try {
-            const msgs = await getMessages();
+            const msgs = await getLegacyMessages();
             processMessages(msgs);
             setLoading(false);
         } catch (error) {
@@ -160,10 +160,25 @@ export default function InboxPage() {
 
     const getStatusIcon = (status?: string) => {
         switch (status) {
+<<<<<<< HEAD
             case 'sent': return <Check className="h-3 w-3 text-gray-400" />;
             case 'delivered': return <CheckCheck className="h-3 w-3 text-gray-400" />;
             case 'read': return <CheckCheck className="h-3 w-3 text-blue-500" />;
             default: return null; // No icon for unknown or pending
+=======
+            case 'sending':
+                return <Check className="h-3.5 w-3.5 opacity-50" strokeWidth={2.5} />;
+            case 'sent':
+                return <Check className="h-3.5 w-3.5" strokeWidth={2.5} />;
+            case 'delivered':
+                return <CheckCheck className="h-3.5 w-3.5" strokeWidth={2.5} />;
+            case 'read':
+                return <CheckCheck className="h-3.5 w-3.5 text-blue-400" strokeWidth={2.5} />;
+            case 'failed':
+                return <span className="text-red-400 text-xs">✕</span>;
+            default:
+                return null;
+>>>>>>> 7bceef50de0c9b815e8d0aa189caed5e9585b8eb
         }
     };
 
@@ -217,6 +232,7 @@ export default function InboxPage() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-gray-900/50">
+<<<<<<< HEAD
                                 {selectedConversation?.messages.map((msg, idx) => (
                                     <div key={idx} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] rounded-lg p-3 ${msg.direction === 'outgoing' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 border'}`}>
@@ -228,6 +244,25 @@ export default function InboxPage() {
                                         </div>
                                     </div>
                                 ))}
+=======
+                                {selectedConversation?.messages
+                                    .filter(msg => msg.type === 'message') // Only show actual messages, not status updates
+                                    .map((msg, idx) => (
+                                        <div key={idx} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[70%] rounded-lg p-3 ${msg.direction === 'outgoing' ? 'bg-green-600 text-white' : 'bg-white dark:bg-gray-800 border'}`}>
+                                                <p className="text-sm">{msg.text || `[${msg.msg_type}]`}</p>
+                                                <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${msg.direction === 'outgoing' ? 'text-white/70' : 'text-gray-400'}`}>
+                                                    <span>{formatTime(msg.timestamp)}</span>
+                                                    {msg.direction === 'outgoing' && msg.status && (
+                                                        <span className="inline-flex items-center ml-1">
+                                                            {getStatusIcon(msg.status)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+>>>>>>> 7bceef50de0c9b815e8d0aa189caed5e9585b8eb
                                 <div ref={messagesEndRef} />
                             </div>
 

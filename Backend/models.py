@@ -1,5 +1,6 @@
 from typing import List, Optional, Literal, Any
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 
 
 class UserCreate(BaseModel):
@@ -21,6 +22,20 @@ class UserPublic(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class Message(BaseModel):
+    """Message model for chat messages"""
+    id: Optional[str] = None
+    chatId: str
+    senderId: str
+    receiverId: str
+    text: str
+    status: Literal["sending", "sent", "delivered", "read"] = "sent"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+    whatsappMessageId: Optional[str] = None  # WhatsApp's message ID from Meta API
+
 
 class MessageRequest(BaseModel):
     phone: str

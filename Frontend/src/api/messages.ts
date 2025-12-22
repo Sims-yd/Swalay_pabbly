@@ -1,5 +1,17 @@
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
+export interface Message {
+    id: string;
+    chatId: string;
+    senderId: string;
+    receiverId: string;
+    text: string;
+    status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+    createdAt: string;
+    updatedAt: string;
+    whatsappMessageId?: string;
+}
+
 export interface SendMessageRequest {
     phone: string;
     message: string;
@@ -89,8 +101,22 @@ export const broadcastTemplate = async (data: BroadcastTemplateRequest) => {
     return response.json();
 };
 
-export const getMessages = async (): Promise<ReceivedMessage[]> => {
-    const response = await fetch(`${BACKEND_URL}/messages`, {
+export const getMessages = async (chatId?: string, limit: number = 50): Promise<Message[]> => {
+    const params = new URLSearchParams();
+    if (chatId) params.append('chatId', chatId);
+    params.append('limit', limit.toString());
+    
+    const response = await fetch(`${BACKEND_URL}/messages?${params.toString()}`, {
+        credentials: 'include',
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+    }
+    return response.json();
+};
+
+export const getLegacyMessages = async (): Promise<ReceivedMessage[]> => {
+    const response = await fetch(`${BACKEND_URL}/messages/legacy`, {
         credentials: 'include',
     });
     if (!response.ok) {

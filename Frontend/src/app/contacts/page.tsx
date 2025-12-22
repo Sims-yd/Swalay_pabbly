@@ -10,7 +10,7 @@ import { Plus, Search, UserCheck, UserX, Users, MessageSquare, Send, RefreshCw }
 import { useGetContacts } from "@/hooks/useApi";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/Dialog";
-import { sendMessage, sendTemplate, getMessages, ReceivedMessage } from "@/api/messages";
+import { sendMessage, sendTemplate, getLegacyMessages, ReceivedMessage } from "@/api/messages";
 import { fetchTemplates, Template } from "@/api/templates";
 
 export default function ContactsPage() {
@@ -47,7 +47,7 @@ export default function ContactsPage() {
 
     const loadReceivedMessages = async () => {
         try {
-            const msgs = await getMessages();
+            const msgs = await getLegacyMessages();
             setReceivedMessages(msgs);
         } catch (error) {
             console.error("Failed to load messages", error);

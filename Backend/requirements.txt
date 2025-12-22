@@ -7,3 +7,5 @@ motor
 passlib[bcrypt]
 python-jose
 email-validator
+python-socketio
+aiofiles
