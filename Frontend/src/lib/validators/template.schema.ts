@@ -42,6 +42,7 @@ export const TemplateSchema = z.object({
     header_format: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "LOCATION", "NONE"]).optional(),
     header_text: z.string().max(60).optional(),
     header_file: z.any().optional(),
+    header_handle: z.string().optional(),
 
     // Body
     body_text: z.string().min(1, "Body text is required").max(1024),

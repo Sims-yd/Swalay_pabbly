@@ -13,6 +13,8 @@ import { mapFormToPayload } from "@/lib/templateMapper";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import InteractiveActions from "./InteractiveActions";
+import { startUpload, finishUpload } from "@/api/whatsappApi";
+import { useToast } from "@/components/ui/use-toast";
 
 interface TemplateFormProps {
     initialData?: Template;
@@ -62,6 +64,8 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
     const bodyText = watch("body_text");
     const headerText = watch("header_text");
     const buttons = watch("buttons") || [];
+    const { toast } = useToast();
+    const [isUploading, setIsUploading] = useState(false);
 
     // Variable parsing logic
     const [bodyVariables, setBodyVariables] = useState<string[]>([]);
@@ -117,6 +121,25 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
         // @ts-ignore
         newButtons[index][field] = value;
         setValue("buttons", newButtons);
+    };
+
+    const handleFileUpload = async (file: File) => {
+        setIsUploading(true);
+        try {
+            const startRes = await startUpload(file.size, file.type);
+            const sessionId = startRes.id;
+
+            const finishRes = await finishUpload(sessionId, file);
+            const handle = finishRes.h;
+
+            setValue("header_handle", handle);
+            toast({ title: "Upload successful", description: "Media uploaded to Meta." });
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Upload failed", description: "Failed to upload media.", variant: "destructive" });
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     return (
@@ -217,12 +240,36 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
                                 <Input
                                     type="file"
                                     accept={type === "IMAGE" ? "image/*" : type === "VIDEO" ? "video/*" : ".pdf,.doc,.docx"}
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                         const file = e.target.files?.[0];
-                                        if (file) setValue("header_file", file);
+                                        if (file) {
+                                            setValue("header_file", file);
+                                            await handleFileUpload(file);
+                                        }
                                     }}
+                                    disabled={isUploading}
                                 />
+                                {isUploading && <p className="text-xs text-muted-foreground">Uploading...</p>}
                                 {errors.header_file && <p className="text-xs text-destructive">{errors.header_file.message as string}</p>}
+                            </div>
+                        )}
+
+                        {type === "LOCATION" && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Latitude</label>
+                                    <Input
+                                        {...register("location_latitude")}
+                                        placeholder="e.g., 37.7749"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Longitude</label>
+                                    <Input
+                                        {...register("location_longitude")}
+                                        placeholder="e.g., -122.4194"
+                                    />
+                                </div>
                             </div>
                         )}
 

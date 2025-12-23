@@ -6,7 +6,7 @@ from uuid import uuid4
 import httpx
 import socketio
 from bson import ObjectId
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import OAuth2PasswordBearer
@@ -622,6 +622,47 @@ async def create_template(
     }
 
     payload = req.model_dump()
+    
+    # Process components to handle examples and clean up extra fields
+    for component in payload.get("components", []):
+        if component.get("type") == "HEADER":
+            fmt = component.get("format")
+            
+            # Handle Media Headers
+            if fmt in ["IMAGE", "VIDEO", "DOCUMENT"]:
+                handle = component.pop("header_handle", None)
+                # Remove other fields that shouldn't be sent
+                component.pop("location_latitude", None)
+                component.pop("location_longitude", None)
+                component.pop("location_name", None)
+                component.pop("location_address", None)
+                
+                if handle:
+                    component["example"] = {"header_handle": [handle]}
+            
+            # Handle Location Headers
+            elif fmt == "LOCATION":
+                lat = component.pop("location_latitude", None)
+                long = component.pop("location_longitude", None)
+                # Remove media fields
+                component.pop("header_handle", None)
+                component.pop("location_name", None)
+                component.pop("location_address", None)
+                
+                if lat is not None and long is not None:
+                    component["example"] = {
+                        "header_location": [{
+                            "latitude": str(lat),
+                            "longitude": str(long)
+                        }]
+                    }
+            else:
+                 # Clean up for TEXT or others
+                component.pop("header_handle", None)
+                component.pop("location_latitude", None)
+                component.pop("location_longitude", None)
+                component.pop("location_name", None)
+                component.pop("location_address", None)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload, headers=headers)
@@ -761,6 +802,59 @@ async def send_template(
     req: TemplateRequest, current_user: UserPublic = Depends(get_current_user)
 ):
     return await send_template_message(req)
+
+
+# 8) Implement endpoints: Media Upload (Resumable)
+@app.post("/media/upload/start")
+async def start_upload(
+    file_length: int, 
+    file_type: str, 
+    current_user: UserPublic = Depends(get_current_user)
+):
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_APP_ID}/uploads"
+    params = {
+        "file_length": file_length,
+        "file_type": file_type,
+        "access_token": settings.WHATSAPP_ACCESS_TOKEN
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, params=params)
+            if resp.status_code != 200:
+                 print(f"Upload start failed: {resp.text}")
+                 raise HTTPException(status_code=resp.status_code, detail=resp.json().get("error", {}).get("message", "Upload start failed"))
+            return resp.json()
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
+
+@app.post("/media/upload/finish")
+async def finish_upload(
+    session_id: str = Form(...), 
+    file: UploadFile = File(...), 
+    current_user: UserPublic = Depends(get_current_user)
+):
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{session_id}"
+    headers = {
+        "Authorization": f"OAuth {settings.WHATSAPP_ACCESS_TOKEN}",
+        "file_offset": "0"
+    }
+    
+    # Read file content
+    try:
+        content = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, headers=headers, content=content)
+            if resp.status_code != 200:
+                 print(f"Upload finish failed: {resp.text}")
+                 raise HTTPException(status_code=resp.status_code, detail=resp.json().get("error", {}).get("message", "Upload finish failed"))
+            return resp.json()
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
 
 
 # ----------------------- Broadcasts (new) -----------------------

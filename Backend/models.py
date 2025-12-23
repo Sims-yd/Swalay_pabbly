@@ -53,9 +53,16 @@ class Component(BaseModel):
     type: Literal["HEADER", "BODY", "FOOTER", "BUTTONS"]
 
     # HEADER
-    format: Optional[Literal["TEXT", "IMAGE", "DOCUMENT", "LOCATION"]] = None
+    format: Optional[Literal["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "LOCATION"]] = None
     text: Optional[str] = None
     example: Optional[dict] = None
+    
+    # New fields for media/location support (Template Creation)
+    header_handle: Optional[str] = None
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    location_name: Optional[str] = None
+    location_address: Optional[str] = None
 
     # BUTTONS
     buttons: Optional[List[dict]] = None
@@ -67,6 +74,13 @@ class TemplateRequest(BaseModel):
     body_parameters: List[str] = []
     header_parameters: List[str] = []  # For TEXT params or Media URLs
     header_type: Optional[str] = None  # IMAGE, VIDEO, DOCUMENT, TEXT, or None
+
+    # New fields for sending media/location
+    media_handle: Optional[str] = None 
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    location_name: Optional[str] = None
+    location_address: Optional[str] = None
 
 class BroadcastRequest(BaseModel):
     name: str

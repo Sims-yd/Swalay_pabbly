@@ -12,21 +12,24 @@ export const mapFormToPayload = (data: TemplateFormData) => {
             // Add example if variables exist (logic handled in form usually, but can be refined here)
         });
     } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(data.type)) {
-        components.push({
+        const headerComponent: any = {
             type: "HEADER",
             format: data.type,
-            // In a real app, we'd upload the file and get a handle. 
-            // For now, we might send a placeholder or assume the backend handles the file.
-            // Pabbly/Meta often requires an example file handle for creation.
-            example: {
-                header_handle: ["4::aW..."] // Placeholder handle
-            }
-        });
+        };
+        if (data.header_handle) {
+            headerComponent.header_handle = data.header_handle;
+        }
+        components.push(headerComponent);
     } else if (data.type === "LOCATION") {
-        components.push({
+        const locationComponent: any = {
             type: "HEADER",
             format: "LOCATION"
-        });
+        };
+        if (data.location_latitude && data.location_longitude) {
+            locationComponent.location_latitude = parseFloat(data.location_latitude);
+            locationComponent.location_longitude = parseFloat(data.location_longitude);
+        }
+        components.push(locationComponent);
     }
 
     // Body

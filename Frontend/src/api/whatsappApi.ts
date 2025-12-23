@@ -81,3 +81,32 @@ export const sendTemplate = async (payload: SendTemplatePayload) => {
     }
     return response.json();
 };
+
+export const startUpload = async (fileLength: number, fileType: string) => {
+    const response = await fetch(`${BACKEND_URL}/media/upload/start?file_length=${fileLength}&file_type=${fileType}`, {
+        method: 'POST',
+        credentials: 'include',
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to start upload');
+    }
+    return response.json();
+};
+
+export const finishUpload = async (sessionId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('file', file);
+
+    const response = await fetch(`${BACKEND_URL}/media/upload/finish`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to finish upload');
+    }
+    return response.json();
+};
