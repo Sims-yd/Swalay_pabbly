@@ -69,9 +69,17 @@ async def send_template_message(req: TemplateRequest):
                     image_url = await fetch_header_image_url(req.template_id, client)
                     header_params.append({"type": "image", "image": {"link": image_url}})
             elif header_type == "VIDEO" and req.header_parameters:
-                header_params.append({"type": "video", "video": {"link": req.header_parameters[0]}})
+                param = req.header_parameters[0]
+                if param.startswith("http"):
+                    header_params.append({"type": "video", "video": {"link": param}})
+                else:
+                    header_params.append({"type": "video", "video": {"id": param}})
             elif header_type == "DOCUMENT" and req.header_parameters:
-                header_params.append({"type": "document", "document": {"link": req.header_parameters[0]}})
+                param = req.header_parameters[0]
+                if param.startswith("http"):
+                    header_params.append({"type": "document", "document": {"link": param}})
+                else:
+                    header_params.append({"type": "document", "document": {"id": param}})
 
             if header_params:
                 components.append({"type": "header", "parameters": header_params})

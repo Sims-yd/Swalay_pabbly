@@ -4,7 +4,7 @@ import { PageWrapper } from "@/components/ui/PageWrapper";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/DataTable";
-import { Plus, RefreshCw, Upload } from "lucide-react";
+import { Plus, RefreshCw, Upload, FileText, Video } from "lucide-react";
 import { useState, useEffect } from "react";
 import { fetchTemplates, Template, deleteTemplate } from "@/api/templates";
 import { sendTemplate } from "@/api/messages";
@@ -139,8 +139,8 @@ export default function TemplatesPage() {
             if (headerComp && headerComp.format) {
                 headerType = headerComp.format;
 
-                // Handle Image Upload
-                if (headerType === 'IMAGE') {
+                // Handle Media Upload (IMAGE, VIDEO, DOCUMENT)
+                if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) {
                     if (selectedFile) {
                         try {
                             const uploadResp = await uploadMedia(selectedFile);
@@ -150,15 +150,13 @@ export default function TemplatesPage() {
                                 throw new Error('Failed to get media ID from upload');
                             }
                         } catch (uploadError: any) {
-                            alert("Image upload failed: " + uploadError.message);
+                            alert(`${headerType} upload failed: ` + uploadError.message);
                             setSending(false);
                             return;
                         }
                     } else {
-                        // If no file selected, we assume they might want to use the default/example if available,
-                        // OR we should enforce upload. The requirement says:
-                        // "If header type is IMAGE and no image is uploaded, show an error message."
-                        alert("Please upload an image for this template.");
+                        // Enforce upload for media templates
+                        alert(`Please upload a ${headerType.toLowerCase()} for this template.`);
                         setSending(false);
                         return;
                     }
@@ -196,12 +194,19 @@ export default function TemplatesPage() {
         let preview = text;
         params.forEach((param, index) => {
             const placeholder = param || `{{${index + 1}}}`;
-            // Replace {{1}}, {{2}} etc. Note: This is a simple replacement, might need regex for robustness
-            // Using regex to replace {{1}} specifically
             const regex = new RegExp(`\\{\\{${index + 1}\\}\\}`, 'g');
             preview = preview.replace(regex, placeholder);
         });
         return preview;
+    };
+
+    const getAcceptType = (format?: string) => {
+        switch (format) {
+            case 'IMAGE': return 'image/*';
+            case 'VIDEO': return 'video/*';
+            case 'DOCUMENT': return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';
+            default: return '*/*';
+        }
     };
 
     return (
@@ -300,10 +305,40 @@ export default function TemplatesPage() {
                                                     )}
                                                 </div>
                                             );
-                                        } else {
+                                        } else if (comp.format === 'VIDEO') {
                                             return (
-                                                <div key={idx} className="bg-gray-200 h-32 w-full rounded mb-2 flex items-center justify-center text-gray-500 text-sm">
-                                                    {comp.format} Header
+                                                <div key={idx} className="mb-2">
+                                                    {selectedFile ? (
+                                                        <video
+                                                            src={URL.createObjectURL(selectedFile)}
+                                                            controls
+                                                            className="w-full h-auto rounded"
+                                                        />
+                                                    ) : (
+                                                        <div className="bg-gray-200 h-32 w-full rounded flex flex-col items-center justify-center text-gray-500 text-sm gap-2">
+                                                            <Video className="w-8 h-8 opacity-50" />
+                                                            Video Header
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        } else if (comp.format === 'DOCUMENT') {
+                                            return (
+                                                <div key={idx} className="mb-2">
+                                                    {selectedFile ? (
+                                                        <div className="bg-blue-50 border border-blue-200 rounded p-4 flex items-center gap-3">
+                                                            <FileText className="w-8 h-8 text-blue-500" />
+                                                            <div className="overflow-hidden">
+                                                                <p className="text-sm font-medium text-blue-900 truncate">{selectedFile.name}</p>
+                                                                <p className="text-xs text-blue-700">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-gray-200 h-32 w-full rounded flex flex-col items-center justify-center text-gray-500 text-sm gap-2">
+                                                            <FileText className="w-8 h-8 opacity-50" />
+                                                            Document Header
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         }
@@ -329,19 +364,19 @@ export default function TemplatesPage() {
                                 })}
                             </div>
 
-                            {/* Upload Button for Image Header */}
-                            {selectedTemplate?.components.find(c => c.type === 'HEADER' && c.format === 'IMAGE') && (
+                            {/* Upload Button for Media Header */}
+                            {selectedTemplate?.components.find(c => c.type === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(c.format || '')) && (
                                 <div className="mt-4 flex justify-center">
                                     <label className="cursor-pointer">
                                         <input
                                             type="file"
-                                            accept="image/*"
+                                            accept={getAcceptType(selectedTemplate.components.find(c => c.type === 'HEADER')?.format)}
                                             className="hidden"
                                             onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
                                         />
                                         <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                                             <Upload className="w-4 h-4" />
-                                            {selectedFile ? "Change Image" : "Upload Image"}
+                                            {selectedFile ? "Change File" : `Upload ${selectedTemplate.components.find(c => c.type === 'HEADER')?.format?.toLowerCase()}`}
                                         </div>
                                     </label>
                                 </div>
@@ -394,7 +429,9 @@ export default function TemplatesPage() {
                                                     setHeaderParams(newParams);
                                                 }}
                                                 placeholder="https://example.com/image.jpg"
+                                                disabled={!!selectedFile} // Disable if file is uploaded
                                             />
+                                            {selectedFile && <p className="text-xs text-green-600">File selected for upload. URL input disabled.</p>}
                                         </div>
                                     )}
                                 </div>
