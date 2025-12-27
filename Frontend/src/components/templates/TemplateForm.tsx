@@ -96,6 +96,18 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
     };
 
     const handleFormSubmit = async (data: TemplateFormData) => {
+        // Validate header_handle for media templates
+        if (["IMAGE", "VIDEO", "DOCUMENT"].includes(data.type)) {
+            if (!data.header_handle) {
+                toast({
+                    title: "Media Upload Required",
+                    description: "Please wait for the media upload to complete or try uploading again.",
+                    variant: "destructive"
+                });
+                return;
+            }
+        }
+
         const payload = mapFormToPayload(data);
         await onSubmit(payload);
     };
@@ -243,7 +255,19 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
                                     onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
+                                            // File size validation
+                                            const maxSize = type === "IMAGE" ? 5 * 1024 * 1024 :
+                                                type === "VIDEO" ? 16 * 1024 * 1024 :
+                                                    100 * 1024 * 1024; // 100MB for Document
+
+                                            if (file.size > maxSize) {
+                                                alert(`File size exceeds the limit of ${maxSize / (1024 * 1024)}MB`);
+                                                e.target.value = ""; // Reset input
+                                                return;
+                                            }
+
                                             setValue("header_file", file);
+                                            setValue("header_handle", ""); // Clear previous handle
                                             await handleFileUpload(file);
                                         }
                                     }}
@@ -392,8 +416,8 @@ export default function TemplateForm({ initialData, onSubmit, isSubmitting }: Te
                 )}
 
                 <div className="flex justify-end gap-4">
-                    <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
-                        {isSubmitting ? "Creating..." : "Submit Template"}
+                    <Button type="submit" disabled={isSubmitting || isUploading} className="w-full sm:w-auto">
+                        {isSubmitting ? "Creating..." : isUploading ? "Uploading Media..." : "Submit Template"}
                     </Button>
                 </div>
             </form>

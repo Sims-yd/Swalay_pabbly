@@ -46,22 +46,26 @@ export default function TemplateRow({ template, onSend, onDelete }: {
             </TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); onSend(template); }}
-                        title="Send Template"
-                    >
-                        <Send className="h-4 w-4 text-primary" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); onDelete(template); }}
-                        title="Delete Template"
-                    >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
+                    {template.status !== "PENDING" && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); onSend(template); }}
+                                title="Send Template"
+                            >
+                                <Send className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); onDelete(template); }}
+                                title="Delete Template"
+                            >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                        </>
+                    )}
                 </div>
             </TableCell>
         </TableRow>

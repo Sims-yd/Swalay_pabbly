@@ -42,7 +42,9 @@ export default function TemplatesPage() {
     const [contacts] = useState([
         { id: "1", name: "Simran", phone: "917007654569" },
         { id: "2", name: "Ammar", phone: "917365993869" },
-        { id: "3", name: "Nikhil", phone: "917042300378" }
+        { id: "3", name: "Nikhil", phone: "917042300378" },
+        { id: "4", name: "Subhankar", phone: "918145873319" },
+        { id: "5", name: "Vartika", phone: "919336037838" }
 
     ]);
 

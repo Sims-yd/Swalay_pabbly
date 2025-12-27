@@ -100,8 +100,9 @@ async def create_template(req: TemplateCreate, current_user: UserPublic = Depend
             fmt = component.get("format")
 
             if fmt in ["IMAGE", "VIDEO", "DOCUMENT"]:
-                if handle:
-                    component["example"] = {"header_handle": [handle]}
+                if not handle:
+                    raise HTTPException(status_code=400, detail=f"Header handle is required for {fmt} templates")
+                component["example"] = {"header_handle": [handle]}
             elif fmt == "LOCATION":
                 if loc_lat is not None and loc_long is not None:
                     component["example"] = {

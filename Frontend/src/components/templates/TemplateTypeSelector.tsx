@@ -22,10 +22,6 @@ const TYPES = [
     { id: "IMAGE", label: "Image", icon: ImageIcon, description: "Image with caption" },
     { id: "VIDEO", label: "Video", icon: Video, description: "Video with caption" },
     { id: "DOCUMENT", label: "Document", icon: FileText, description: "PDF or Doc file" },
-    { id: "LOCATION", label: "Location", icon: MapPin, description: "Location coordinates" },
-    { id: "CAROUSEL", label: "Carousel", icon: GalleryHorizontal, description: "Scrollable cards" },
-    { id: "LIMITED_TIME_OFFER", label: "Offer", icon: Clock, description: "Limited time deal" },
-    { id: "CATALOG", label: "Catalog", icon: ShoppingBag, description: "Product catalog" },
 ];
 
 export default function TemplateTypeSelector({ value, onChange, disabled }: TemplateTypeSelectorProps) {
