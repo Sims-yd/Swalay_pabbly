@@ -102,9 +102,9 @@ export default function BroadcastForm() {
             return;
         }
 
-        if (headerType === 'IMAGE') {
+        if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType || '')) {
             if (!selectedFile && (!headerParams[0] || !headerParams[0].trim())) {
-                alert('Please upload an image or enter a URL/ID');
+                alert(`Please upload a ${headerType?.toLowerCase()} or enter a URL/ID`);
                 return;
             }
         } else if (headerParams.some(p => !p)) {
@@ -138,8 +138,8 @@ export default function BroadcastForm() {
 
             let finalHeaderParams = [...headerParams];
 
-            // Handle Image Upload if file selected
-            if (headerType === 'IMAGE' && selectedFile) {
+            // Handle Media Upload if file selected
+            if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType || '') && selectedFile) {
                 try {
                     const uploadResp = await uploadMedia(selectedFile);
                     if (uploadResp && uploadResp.id) {
@@ -148,7 +148,7 @@ export default function BroadcastForm() {
                         throw new Error('Failed to get media ID from upload');
                     }
                 } catch (uploadError: any) {
-                    alert("Image upload failed: " + uploadError.message);
+                    alert(`${headerType} upload failed: ` + uploadError.message);
                     setIsSending(false);
                     return;
                 }
@@ -306,12 +306,17 @@ export default function BroadcastForm() {
                                     <div className="space-y-3">
                                         <h3 className="text-sm font-medium text-gray-900">Header Parameters ({headerType})</h3>
 
-                                        {headerType === 'IMAGE' && (
+                                        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType || '') && (
                                             <div className="space-y-2">
-                                                <label className="text-xs text-gray-500">Upload Image</label>
+                                                <label className="text-xs text-gray-500">Upload {headerType}</label>
                                                 <input
                                                     type="file"
-                                                    accept="image/*"
+                                                    accept={
+                                                        headerType === 'IMAGE' ? "image/*" :
+                                                            headerType === 'VIDEO' ? "video/*" :
+                                                                headerType === 'DOCUMENT' ? ".pdf,.doc,.docx,.ppt,.pptx,.txt,.xls,.xlsx" :
+                                                                    undefined
+                                                    }
                                                     onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
                                                     className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                                 />
