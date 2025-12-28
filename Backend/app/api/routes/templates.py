@@ -118,8 +118,8 @@ async def get_templates(current_user: UserPublic = Depends(get_current_user), db
     """Get templates from database cache"""
     templates_collection = db["templates"]
     
-    # Get all templates from DB
-    cursor = templates_collection.find({})
+    # Get all templates from DB, sorted by created_at descending (newest first)
+    cursor = templates_collection.find({}).sort("created_at", -1)
     templates = await cursor.to_list(length=None)
     
     # Get the most recent sync time
@@ -138,6 +138,7 @@ async def get_templates(current_user: UserPublic = Depends(get_current_user), db
             "id": template.get("meta_id"),
             "status": template.get("status"),
             "components": template.get("components", []),
+            "created_at": utc_to_ist(template.get("created_at")).isoformat() if template.get("created_at") else None,
         })
     
     return {

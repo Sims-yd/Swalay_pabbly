@@ -20,6 +20,22 @@ export default function TemplateRow({ template, onSend, onDelete }: {
         router.push(`/templates/${template.id}`);
     };
 
+    const formatDate = (dateString?: string) => {
+        if (!dateString) return "N/A";
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        if (diffMins < 1) return "Just now";
+        if (diffMins < 60) return `${diffMins}m ago`;
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+    };
+
     return (
         <TableRow
             key={template.id}
@@ -44,6 +60,7 @@ export default function TemplateRow({ template, onSend, onDelete }: {
                     {template.status}
                 </Badge>
             </TableCell>
+            <TableCell className="text-muted text-sm">{formatDate(template.created_at)}</TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
                     {template.status !== "PENDING" && (

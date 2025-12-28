@@ -25,6 +25,8 @@ export default function TemplatesPage() {
     const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
+    const [sortBy, setSortBy] = useState<"date" | "name">("date");
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
     const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -186,12 +188,31 @@ export default function TemplatesPage() {
         }
     };
 
-    const filteredTemplates = templates.filter((template) => {
-        const matchesTab = activeTab === "All" || template.status.toUpperCase() === activeTab.toUpperCase();
-        const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            template.category.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesTab && matchesSearch;
-    });
+    const filteredTemplates = (() => {
+        let result = templates.filter((template) => {
+            const matchesTab = activeTab === "All" || template.status.toUpperCase() === activeTab.toUpperCase();
+            const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                template.category.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchesTab && matchesSearch;
+        });
+
+        // Sort templates
+        result.sort((a, b) => {
+            let compareValue = 0;
+            
+            if (sortBy === "date") {
+                const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                compareValue = dateA - dateB;
+            } else if (sortBy === "name") {
+                compareValue = a.name.localeCompare(b.name);
+            }
+            
+            return sortOrder === "asc" ? compareValue : -compareValue;
+        });
+
+        return result;
+    })();
 
     // Helper to render preview text with replaced params
     const renderPreviewText = (text: string, params: string[]) => {
@@ -255,6 +276,10 @@ export default function TemplatesPage() {
                         searchQuery={searchQuery}
                         setSearchQuery={setSearchQuery}
                         tabs={tabs}
+                        sortBy={sortBy}
+                        setSortBy={setSortBy}
+                        sortOrder={sortOrder}
+                        setSortOrder={setSortOrder}
                     />
                 </CardHeader>
                 <CardContent>
@@ -265,19 +290,20 @@ export default function TemplatesPage() {
                                 <TableHead>Category</TableHead>
                                 <TableHead>Language</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead>Created At</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                                         Loading templates...
                                     </TableCell>
                                 </TableRow>
                             ) : filteredTemplates.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                                         No templates found.
                                     </TableCell>
                                 </TableRow>

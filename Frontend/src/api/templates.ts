@@ -15,6 +15,7 @@ export interface Template {
     category: string;
     status: 'APPROVED' | 'PENDING' | 'REJECTED' | 'DRAFT';
     components: TemplateComponent[];
+    created_at?: string;
 }
 
 export interface TemplatesResponse {
