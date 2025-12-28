@@ -24,10 +24,10 @@ export default function BroadcastDetails() {
     }, [id]);
 
     return (
-        <PageWrapper title={broadcast?.name || 'Broadcast Details'} actions={<Button variant="ghost" onClick={() => router.push('/broadcast')}>Back</Button>}>
+        <PageWrapper title={broadcast?.name ? `${broadcast.name} - Report` : 'Broadcast Report'} actions={<Button variant="ghost" onClick={() => router.push('/broadcast')}>Back</Button>}>
             <Card>
                 <CardHeader>
-                    <CardTitle>Recipients</CardTitle>
+                    <CardTitle>Delivery Report</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
