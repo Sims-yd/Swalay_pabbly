@@ -1,25 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-
-// Mock data generators
-const mockTemplates = [
-    { id: 1, name: "Welcome Message", status: "APPROVED", language: "en", category: "MARKETING" },
-    { id: 2, name: "Order Confirmation", status: "APPROVED", language: "en", category: "UTILITY" },
-    { id: 3, name: "Payment Reminder", status: "PENDING", language: "en", category: "UTILITY" },
-];
-
-const mockContacts = [
-    { id: 1, name: "John Doe", phone: "+1234567890", status: "opted-in", created_at: "2023-01-01" },
-    { id: 2, name: "Jane Smith", phone: "+0987654321", status: "opted-out", created_at: "2023-01-02" },
-];
-
-const mockBroadcasts = [
-    { id: 1, name: "New Year Sale", status: "Sent", sent: 100, delivered: 98, read: 80 },
-    { id: 2, name: "Weekly Update", status: "Scheduled", sent: 0, delivered: 0, read: 0 },
-];
-
 import { useEffect, useState } from "react";
 import { fetchTemplates, getTemplate, Template } from "@/api/templates";
 import { getBroadcasts, createBroadcast } from "@/api/broadcasts";
+import { type Contact, getContacts, addContact, getContactStats } from "@/api/contacts";
+import { getContactLists, createContactList } from "@/api/contactLists";
 
 export const useGetTemplates = () => {
     const [data, setData] = useState<Template[] | null>(null);
@@ -63,12 +46,71 @@ export const useSendMessage = () => {
     return { mutate: (data: any) => console.log("Sending message", data) };
 };
 
-export const useGetContacts = () => {
-    return { data: mockContacts, isLoading: false };
+export const useGetContacts = (listId?: string) => {
+    const [data, setData] = useState<Contact[] | null>(null);
+    const [isLoading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
+
+    const load = async (targetListId?: string) => {
+        setLoading(true);
+        try {
+            const c = await getContacts(targetListId ?? listId);
+            setData(c);
+        } catch (e) {
+            setError(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        let mounted = true;
+        load(listId).finally(() => {
+            if (!mounted) return;
+        });
+        return () => { mounted = false; };
+    }, [listId]);
+
+    return { data, isLoading, error, refetch: () => load(listId) };
 };
 
 export const useAddContact = () => {
-    return { mutate: (data: any) => console.log("Adding contact", data) };
+    return { mutate: (data: { name: string; phone: string; list_ids?: string[] }) => addContact(data) };
+};
+
+export const useGetContactStats = () => {
+    const [data, setData] = useState<{ total: number } | null>(null);
+    const [isLoading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        getContactStats().then((s) => { if (mounted) setData(s); }).catch(e => { if (mounted) setError(e); }).finally(() => mounted && setLoading(false));
+        return () => { mounted = false; };
+    }, []);
+
+    return { data, isLoading, error };
+};
+
+export const useGetContactLists = () => {
+    const [data, setData] = useState<Array<{ id: string; name: string; contact_count?: number }> | null>(null);
+    const [isLoading, setLoading] = useState(true);
+    const [error, setError] = useState<any>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        getContactLists().then((res) => { if (mounted) setData(res.lists); }).catch(e => { if (mounted) setError(e); }).finally(() => mounted && setLoading(false));
+        return () => { mounted = false; };
+    }, []);
+
+    return { data, isLoading, error, refetch: async () => {
+        setLoading(true);
+        try { const res = await getContactLists(); setData(res.lists); } finally { setLoading(false); }
+    } };
+};
+
+export const useCreateContactList = () => {
+    return { mutate: (name: string) => createContactList(name) };
 };
 
 export const useGetBroadcasts = () => {

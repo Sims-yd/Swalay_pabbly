@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import auth, broadcasts, media, messages, templates, webhook
+from app.api.routes import contacts, contact_lists
 from app.db.mongo import close_mongo, connect_to_mongo
 from app.sockets import create_socket_app
 from config import settings
@@ -36,6 +37,8 @@ app.include_router(messages.router)
 app.include_router(templates.router)
 app.include_router(media.router)
 app.include_router(broadcasts.router)
+app.include_router(contacts.router)
+app.include_router(contact_lists.router)
 
 
 @app.get("/health")

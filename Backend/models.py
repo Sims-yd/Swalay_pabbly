@@ -108,3 +108,33 @@ class TemplateCached(BaseModel):
     created_at: Optional[datetime] = None
 
 
+# Contacts
+class ContactCreate(BaseModel):
+    name: str
+    phone: str
+    list_ids: Optional[List[str]] = []
+
+
+class ContactUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    list_ids: Optional[List[str]] = None
+
+
+class ContactPublic(BaseModel):
+    id: str
+    name: str
+    phone: str
+    list_ids: List[str] = []
+    created_at: str
+
+
+class ContactListCreate(BaseModel):
+    name: str
+
+
+class ContactListUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+

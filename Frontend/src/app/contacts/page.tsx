@@ -5,16 +5,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
-import { Plus, Search, UserCheck, UserX, Users, MessageSquare, Send, RefreshCw } from "lucide-react";
-import { useGetContacts } from "@/hooks/useApi";
+import { Plus, Search, Users, MessageSquare, Send, Trash2 } from "lucide-react";
+import { useGetContacts, useAddContact, useGetContactStats, useGetContactLists, useCreateContactList } from "@/hooks/useApi";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/Dialog";
-import { sendMessage, sendTemplate, getLegacyMessages, ReceivedMessage } from "@/api/messages";
+import { sendMessage, sendTemplate } from "@/api/messages";
 import { fetchTemplates, Template } from "@/api/templates";
+import Link from "next/link";
+import { deleteContact } from "@/api/contacts";
 
 export default function ContactsPage() {
-    const { data: contacts } = useGetContacts();
+    const [activeListId, setActiveListId] = useState<string | undefined>(undefined);
+    const { data: contacts, refetch: refetchContacts } = useGetContacts(activeListId);
+    const { data: stats } = useGetContactStats();
+    const { data: lists, refetch: refetchLists } = useGetContactLists();
+    const addContact = useAddContact();
+    const createList = useCreateContactList();
+
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
     const [selectedContact, setSelectedContact] = useState<any>(null);
     const [messageText, setMessageText] = useState("");
     const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
@@ -25,16 +34,24 @@ export default function ContactsPage() {
     const [selectedTemplate, setSelectedTemplate] = useState<string>("");
     const [templateParams, setTemplateParams] = useState<string[]>([]);
 
-    // Received messages state
-    const [receivedMessages, setReceivedMessages] = useState<ReceivedMessage[]>([]);
+    // Add Contact modal state
+    const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+    const [newName, setNewName] = useState("");
+    const [newPhone, setNewPhone] = useState("");
+    const [newContactListId, setNewContactListId] = useState<string>("");
+
+    // Add List modal state
+    const [isAddListOpen, setIsAddListOpen] = useState(false);
+    const [newListName, setNewListName] = useState("");
 
     useEffect(() => {
         loadTemplates();
-        loadReceivedMessages();
-        // Poll for new messages every 5 seconds
-        const interval = setInterval(loadReceivedMessages, 5000);
-        return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        // clear selection when contacts change
+        setSelectedIds([]);
+    }, [contacts]);
 
     const loadTemplates = async () => {
         try {
@@ -45,12 +62,61 @@ export default function ContactsPage() {
         }
     };
 
-    const loadReceivedMessages = async () => {
+    const handleAddContact = async () => {
+        if (!newName || !newPhone) return;
         try {
-            const msgs = await getLegacyMessages();
-            setReceivedMessages(msgs);
-        } catch (error) {
-            console.error("Failed to load messages", error);
+            await addContact.mutate({ name: newName, phone: newPhone, list_ids: newContactListId ? [newContactListId] : [] });
+            setIsAddContactOpen(false);
+            setNewName("");
+            setNewPhone("");
+            setNewContactListId("");
+        } catch (e: any) {
+            alert(e.message || "Failed to add contact");
+        }
+    };
+
+    const handleCreateList = async () => {
+        if (!newListName) return;
+        try {
+            await createList.mutate(newListName);
+            setIsAddListOpen(false);
+            setNewListName("");
+            await refetchLists();
+        } catch (e: any) {
+            alert(e.message || "Failed to create list");
+        }
+    };
+
+    const handleDeleteContact = async (id: string) => {
+        try {
+            await deleteContact(id);
+            await refetchContacts();
+        } catch (e: any) {
+            alert(e.message || "Failed to delete contact");
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!selectedIds.length) return;
+        try {
+            await Promise.all(selectedIds.map((id) => deleteContact(id)));
+            setSelectedIds([]);
+            await refetchContacts();
+        } catch (e: any) {
+            alert(e.message || "Failed to delete selected contacts");
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    };
+
+    const toggleSelectAll = () => {
+        if (!contacts) return;
+        if (selectedIds.length === contacts.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(contacts.map((c) => c.id));
         }
     };
 
@@ -98,37 +164,78 @@ export default function ContactsPage() {
         <PageWrapper
             title="Contacts"
             actions={
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" /> Add Contact
-                </Button>
+                <div className="flex gap-2">
+                    <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> Add Contact
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Add Contact</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-3 py-2">
+                                <div>
+                                    <label className="text-sm font-medium">Name</label>
+                                    <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="John Doe" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium">Phone</label>
+                                    <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+1234567890" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium">Contact List (optional)</label>
+                                    <select
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none"
+                                        value={newContactListId}
+                                        onChange={(e) => setNewContactListId(e.target.value)}
+                                    >
+                                        <option value="">None</option>
+                                        {lists?.map((l) => (
+                                            <option key={l.id} value={l.id}>{l.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button onClick={handleAddContact}>Save</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    <Dialog open={isAddListOpen} onOpenChange={setIsAddListOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline">
+                                <Plus className="mr-2 h-4 w-4" /> Add List
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Create Contact List</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-3 py-2">
+                                <div>
+                                    <label className="text-sm font-medium">Name</label>
+                                    <Input value={newListName} onChange={(e) => setNewListName(e.target.value)} placeholder="VIP Customers" />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button onClick={handleCreateList}>Create</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             }
         >
-            <div className="grid gap-4 md:grid-cols-3 mb-6">
+            <div className="grid gap-4 md:grid-cols-1 mb-6">
                 <Card className="border-none shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-gray-600">Total Contacts</CardTitle>
                         <Users className="h-4 w-4 text-blue-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">1,234</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">Opted-in</CardTitle>
-                        <UserCheck className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">1,100</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">Opted-out</CardTitle>
-                        <UserX className="h-4 w-4 text-red-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">134</div>
+                        <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -140,37 +247,25 @@ export default function ContactsPage() {
                             <CardTitle className="text-lg">Contact Lists</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
-                            {["All Contacts", "VIP Customers", "New Leads", "Inactive"].map((list) => (
-                                <Button key={list} variant="ghost" className="w-full justify-start font-normal">
-                                    {list}
-                                </Button>
-                            ))}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="h-fit border-none shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-lg">Received Messages</CardTitle>
-                            <Button variant="ghost" size="sm" onClick={loadReceivedMessages}>
-                                <RefreshCw className="h-4 w-4" />
+                            <Button
+                                variant={activeListId ? "ghost" : "secondary"}
+                                className="w-full justify-start font-normal"
+                                onClick={() => setActiveListId(undefined)}
+                            >
+                                All Contacts
                             </Button>
-                        </CardHeader>
-                        <CardContent className="max-h-[400px] overflow-y-auto space-y-4">
-                            {receivedMessages.length === 0 ? (
-                                <p className="text-sm text-gray-500 text-center py-4">No messages received yet.</p>
-                            ) : (
-                                receivedMessages.map((msg, idx) => (
-                                    <div key={idx} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-sm">
-                                        <div className="flex justify-between mb-1">
-                                            <span className="font-semibold text-blue-600">{msg.from}</span>
-                                            <span className="text-xs text-gray-500">
-                                                {new Date(parseInt(msg.timestamp) * 1000).toLocaleTimeString()}
-                                            </span>
-                                        </div>
-                                        <p className="text-gray-700 dark:text-gray-300">{msg.text || `[${msg.type}]`}</p>
-                                    </div>
-                                ))
-                            )}
+                            {lists?.map((list) => (
+                                <div key={list.id} className="flex items-center gap-2">
+                                    <Button
+                                        variant={activeListId === list.id ? "secondary" : "ghost"}
+                                        className="w-full justify-start font-normal"
+                                        onClick={() => setActiveListId(list.id)}
+                                    >
+                                        {list.name} ({list.contact_count ?? 0})
+                                    </Button>
+                                    <Link href={`/contacts/lists`} className="text-xs text-blue-600">Manage</Link>
+                                </div>
+                            ))}
                         </CardContent>
                     </Card>
                 </div>
@@ -178,31 +273,44 @@ export default function ContactsPage() {
                 <Card className="border-none shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg">All Contacts</CardTitle>
-                        <div className="w-64 relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                            <Input placeholder="Search contacts..." className="pl-9" />
+                        <div className="flex items-center gap-2">
+                            <Button variant="destructive" size="sm" disabled={!selectedIds.length} onClick={handleBulkDelete}>
+                                <Trash2 className="h-4 w-4 mr-1" /> Delete Selected
+                            </Button>
+                            <div className="w-64 relative">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                                <Input placeholder="Search contacts..." className="pl-9" />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-10">
+                                        <input
+                                            type="checkbox"
+                                            checked={contacts?.length ? selectedIds.length === contacts.length : false}
+                                            onChange={() => toggleSelectAll()}
+                                        />
+                                    </TableHead>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Phone</TableHead>
-                                    <TableHead>Status</TableHead>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {contacts?.map((contact) => (
                                     <TableRow key={contact.id}>
+                                        <TableCell>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.includes(contact.id)}
+                                                onChange={() => toggleSelect(contact.id)}
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium">{contact.name}</TableCell>
                                         <TableCell>{contact.phone}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={contact.status === "opted-in" ? "success" : "destructive"}>
-                                                {contact.status}
-                                            </Badge>
-                                        </TableCell>
                                         <TableCell>
                                             <div className="flex gap-2">
                                                 <Dialog open={isMessageDialogOpen && selectedContact?.id === contact.id} onOpenChange={(open) => {
@@ -278,10 +386,14 @@ export default function ContactsPage() {
                                                         </DialogFooter>
                                                     </DialogContent>
                                                 </Dialog>
+
+                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteContact(contact.id)}>
+                                                    <Trash2 className="h-4 w-4 mr-1" /> Delete
+                                                </Button>
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                    ))}
                             </TableBody>
                         </Table>
                     </CardContent>
