@@ -1,6 +1,6 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.core.security import get_current_user
 from app.db.mongo import get_db
@@ -9,6 +9,15 @@ from config import settings
 from models import TemplateCreate, TemplateRequest, UserPublic
 
 router = APIRouter(tags=["templates"])
+
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def utc_to_ist(utc_dt: datetime) -> datetime:
+    """Convert UTC datetime to IST"""
+    if utc_dt.tzinfo is None:
+        utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+    return utc_dt.astimezone(IST)
 
 
 async def sync_templates_from_meta(db):
@@ -86,7 +95,7 @@ async def sync_templates_from_meta(db):
             return {
                 "synced": synced_count,
                 "deleted": delete_result.deleted_count,
-                "last_synced_at": current_time.isoformat()
+                "last_synced_at": utc_to_ist(current_time).isoformat()
             }
 
         except httpx.HTTPStatusError as exc:
@@ -133,7 +142,7 @@ async def get_templates(current_user: UserPublic = Depends(get_current_user), db
     
     return {
         "templates": result,
-        "last_synced_at": last_synced_at.isoformat() if last_synced_at else None
+        "last_synced_at": utc_to_ist(last_synced_at).isoformat() if last_synced_at else None
     }
 
 
