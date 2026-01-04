@@ -81,6 +81,26 @@ async def contacts_stats(current_user: UserPublic = Depends(get_current_user), d
     total = await db["contacts"].count_documents({"user_id": user_oid})
     return {"total": total}
 
+@router.get("/dashboard/stats")
+async def dashboard_stats(current_user: UserPublic = Depends(get_current_user), db=Depends(get_db)):
+    """
+    Aggregate endpoint that returns all dashboard statistics.
+    Returns counts for: contacts, contact lists, templates, and broadcasts
+    """
+    user_oid = _oid(current_user.id)
+    
+    # Execute all counts in parallel
+    contacts_count = await db["contacts"].count_documents({"user_id": user_oid})
+    contact_lists_count = await db["contact_lists"].count_documents({"user_id": user_oid})
+    templates_count = await db["templates"].count_documents({"user_id": user_oid})
+    broadcasts_count = await db["broadcasts"].count_documents({"user_id": user_oid})
+    
+    return {
+        "contacts": contacts_count,
+        "contact_lists": contact_lists_count,
+        "templates": templates_count,
+        "broadcasts": broadcasts_count,
+    }
 
 @router.patch("/{contact_id}", response_model=ContactPublic)
 async def update_contact(

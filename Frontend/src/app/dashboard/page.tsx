@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { PageWrapper } from "@/components/ui/PageWrapper";
-import { getContactStats } from "@/api/contacts";
-import { getContactLists } from "@/api/contactLists";
-import { fetchTemplates } from "@/api/templates";
-import { getBroadcasts } from "@/api/broadcasts";
+import { getDashboardStats } from "@/api/contacts";
 import { Megaphone, Phone, FileText, ListChecks, Loader2, AlertCircle } from "lucide-react";
 
 type DashboardCounts = {
@@ -28,20 +25,15 @@ export default function DashboardPage() {
         const load = async () => {
             setIsLoading(true);
             try {
-                const [contactStats, listsRes, templatesRes, broadcastsRes] = await Promise.all([
-                    getContactStats(),
-                    getContactLists(),
-                    fetchTemplates(),
-                    getBroadcasts(),
-                ]);
+                const stats = await getDashboardStats();
 
                 if (!mounted) return;
 
                 setCounts({
-                    contacts: contactStats?.total ?? 0,
-                    contactLists: listsRes?.lists?.length ?? 0,
-                    templates: templatesRes?.templates?.length ?? 0,
-                    broadcasts: Array.isArray(broadcastsRes) ? broadcastsRes.length : 0,
+                    contacts: stats.contacts ?? 0,
+                    contactLists: stats.contact_lists ?? 0,
+                    templates: stats.templates ?? 0,
+                    broadcasts: stats.broadcasts ?? 0,
                 });
                 setError(null);
             } catch (err: any) {

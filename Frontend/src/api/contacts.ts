@@ -97,3 +97,16 @@ export const removeContactFromList = async (contactId: string, listId: string): 
     }
     return response.json();
 };
+
+export interface DashboardStats {
+    contacts: number;
+    contact_lists: number;
+    templates: number;
+    broadcasts: number;
+}
+
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+    const response = await fetch(`${BACKEND_URL}/contacts/dashboard/stats`, { credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to fetch dashboard stats');
+    return response.json();
+};
