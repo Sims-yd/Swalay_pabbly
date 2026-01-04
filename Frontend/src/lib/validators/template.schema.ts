@@ -18,16 +18,51 @@ export const ButtonTypeEnum = z.enum(["QUICK_REPLY", "URL", "PHONE_NUMBER", "COP
 export const ButtonSchema = z.object({
     type: ButtonTypeEnum,
     text: z.string().min(1, "Button text is required").max(25, "Max 25 chars"),
-    url: z.string().url("Invalid URL").optional(),
+    url: z.string().optional(),
     phone_number: z.string().optional(),
     example: z.array(z.string()).optional(),
 }).superRefine((data, ctx) => {
-    if (data.type === "URL" && data.url?.includes("{{1}}") && (!data.example || data.example.length === 0 || !data.example[0])) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "URL example is required when using variables",
-            path: ["example", 0],
-        });
+    if (data.type === "URL") {
+        if (!data.url) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "URL is required",
+                path: ["url"],
+            });
+        } else {
+            const urlResult = z.string().url().safeParse(data.url);
+            if (!urlResult.success) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "Invalid URL",
+                    path: ["url"],
+                });
+            }
+        }
+
+        if (data.url?.includes("{{1}}") && (!data.example || data.example.length === 0 || !data.example[0])) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "URL example is required when using variables",
+                path: ["example", 0],
+            });
+        }
+    }
+
+    if (data.type === "PHONE_NUMBER") {
+        if (!data.phone_number) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Phone number is required",
+                path: ["phone_number"],
+            });
+        } else if (!/^\+?\d{8,15}$/.test(data.phone_number)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Invalid phone number (8-15 digits)",
+                path: ["phone_number"],
+            });
+        }
     }
 });
 
@@ -163,24 +198,6 @@ export const TemplateSchema = z.object({
                         path: ["buttons"],
                     });
                 }
-
-                // Validate individual buttons
-                data.buttons.forEach((btn, idx) => {
-                    if (btn.type === "URL" && !btn.url) {
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            message: "URL is required",
-                            path: [`buttons`, idx, "url"],
-                        });
-                    }
-                    if (btn.type === "PHONE_NUMBER" && !btn.phone_number) {
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            message: "Phone number is required",
-                            path: [`buttons`, idx, "phone_number"],
-                        });
-                    }
-                });
             }
         }
     });
