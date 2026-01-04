@@ -128,9 +128,9 @@ export default function InboxPage() {
 
     return (
         <PageWrapper title="Inbox">
-            <div className="grid grid-cols-[300px_1fr] gap-6 h-[600px]">
+            <div className="flex gap-6 h-screen max-h-[calc(100vh-120px)]">
                 {/* Sidebar */}
-                <Card className="border-none shadow-sm flex flex-col h-full">
+                <Card className="border-none shadow-sm flex flex-col w-[300px] h-full flex-shrink-0">
                     <div className="p-4 border-b">
                         <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -160,22 +160,22 @@ export default function InboxPage() {
                 </Card>
 
                 {/* Chat Area */}
-                <Card className="border-none shadow-sm flex flex-col h-full">
+                <Card className="border-none shadow-sm flex flex-col flex-1 h-full min-w-0">
                     {selectedContactId ? (
                         <>
-                            <div className="p-4 border-b flex items-center justify-between">
+                            <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                                         <User className="h-6 w-6 text-gray-500" />
                                     </div>
-                                    <div>
-                                        <h3 className="font-semibold">{selectedConversation?.name}</h3>
-                                        <p className="text-xs text-gray-500">{selectedContactId}</p>
+                                    <div className="min-w-0">
+                                        <h3 className="font-semibold truncate">{selectedConversation?.name}</h3>
+                                        <p className="text-xs text-gray-500 truncate">{selectedContactId}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-gray-900/50">
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-gray-900/50 min-h-0">
                                 {selectedConversation?.messages
                                     .map((msg, idx) => (
                                         <div key={idx} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
@@ -195,7 +195,7 @@ export default function InboxPage() {
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            <div className="p-4 border-t bg-white dark:bg-gray-950">
+                            <div className="p-4 border-t bg-white dark:bg-gray-950 flex-shrink-0">
                                 <div className="flex gap-2">
                                     <Input
                                         value={messageText}
