@@ -4,7 +4,7 @@ from typing import Optional
 from bson import ObjectId
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -14,7 +14,7 @@ from app.db.mongo import get_db
 from app.services.users import get_user_by_email
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+security = HTTPBearer(auto_error=False)
 TOKEN_COOKIE_NAME = "access_token"
 
 
@@ -65,8 +65,9 @@ async def authenticate_user(email: str, password: str, db):
     return user
 
 
-async def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db=Depends(get_db)) -> UserPublic:
-    raw_token = token or request.cookies.get(TOKEN_COOKIE_NAME)
+async def get_current_user(request: Request, token: Optional[HTTPAuthorizationCredentials] = Depends(security), db=Depends(get_db)) -> UserPublic:
+    token_str = token.credentials if token else None
+    raw_token = token_str or request.cookies.get(TOKEN_COOKIE_NAME)
 
     if not raw_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")

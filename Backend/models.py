@@ -138,3 +138,10 @@ class ContactListUpdate(BaseModel):
 
 
 
+
+class WhatsAppCredential(BaseModel):
+    user_id: str
+    waba_id: str
+    phone_number_id: str
+    access_token: str
+    created_at: datetime = datetime.utcnow()
