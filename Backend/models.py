@@ -13,6 +13,13 @@ class UserLogin(BaseModel):
     password: str
 
 
+class FacebookLoginRequest(BaseModel):
+    access_token: str
+    email: Optional[EmailStr] = None  # Optional fallback if FB doesn't provide it
+    facebook_id: str
+    name: Optional[str] = None
+
+
 class UserPublic(BaseModel):
     id: str
     email: EmailStr

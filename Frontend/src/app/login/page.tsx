@@ -8,6 +8,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { login } from "@/api/auth";
 import { MessageSquare, Mail, Lock, ArrowRight } from "lucide-react";
+import FacebookLoginButton from "@/components/auth/FacebookLoginButton";
 
 const loginSchema = z.object({
     email: z.string().min(1, "Email is required").email("Enter a valid email"),
@@ -52,7 +53,7 @@ export default function LoginPage() {
                 {/* Decorative circles */}
                 <div className="absolute top-20 left-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                 <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-                
+
                 {/* Content */}
                 <div className="relative z-10 flex flex-col items-center justify-center w-full px-12 text-white">
                     <div className="flex items-center justify-center w-20 h-20 mb-6 bg-white/20 backdrop-blur-sm rounded-2xl">
@@ -161,6 +162,11 @@ export default function LoginPage() {
                             <div className="relative flex justify-center text-sm">
                                 <span className="px-4 bg-white text-gray-500">or</span>
                             </div>
+                        </div>
+
+                        {/* Facebook Login */}
+                        <div className="mb-6">
+                            <FacebookLoginButton />
                         </div>
 
                         {/* Sign Up Link */}

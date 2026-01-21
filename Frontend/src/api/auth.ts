@@ -17,7 +17,15 @@ export interface AuthResponse {
     user: AuthUser;
 }
 
-const handleAuthRequest = async (path: string, payload?: AuthPayload) => {
+
+export interface FacebookAuthPayload {
+    access_token: string;
+    facebook_id: string;
+    email?: string;
+    name?: string;
+}
+
+const handleAuthRequest = async (path: string, payload?: AuthPayload | FacebookAuthPayload) => {
     const url = `${BACKEND_URL}${path}`;
     console.debug(`[auth] POST`, path, `→`, url);
     const response = await fetch(url, {
@@ -42,6 +50,7 @@ const handleAuthRequest = async (path: string, payload?: AuthPayload) => {
 
 export const signup = async (payload: AuthPayload) => handleAuthRequest('/auth/signup', payload);
 export const login = async (payload: AuthPayload) => handleAuthRequest('/auth/login', payload);
+export const facebookLogin = async (payload: FacebookAuthPayload) => handleAuthRequest('/auth/facebook', payload);
 export const logout = async () => {
     await fetch(`${BACKEND_URL}/auth/logout`, {
         method: 'POST',
