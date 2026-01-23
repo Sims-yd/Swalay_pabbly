@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     FACEBOOK_APP_SECRET: Optional[str] = None
     FACEBOOK_REDIRECT_URI: Optional[str] = None
     META_API_VERSION: str = "v21.0"
+    # Gemini AI API Key for Chatbot
+    GEMINI_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"

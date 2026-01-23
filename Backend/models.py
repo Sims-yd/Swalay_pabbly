@@ -152,3 +152,23 @@ class WhatsAppCredential(BaseModel):
     phone_number_id: str
     access_token: str
     created_at: datetime = datetime.utcnow()
+
+
+# Chatbot Models
+class ChatMessage(BaseModel):
+    """Individual chat message in conversation"""
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatbotRequest(BaseModel):
+    """Request model for chatbot endpoint"""
+    message: str
+    conversation_history: Optional[List[ChatMessage]] = []
+
+
+class ChatbotResponse(BaseModel):
+    """Response model for chatbot endpoint"""
+    response: str
+    success: bool = True
+    error: Optional[str] = None

@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 
 import { Footer } from "@/components/layout/Footer";
+import { Chatbot } from "@/components/chatbot/Chatbot";
 
 export function AppShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -22,6 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {children}
                 </div>
                 <Footer />
+                <Chatbot />
             </main>
         );
     }
@@ -38,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Footer />
                 </main>
             </div>
+            <Chatbot />
         </div>
     );
 }

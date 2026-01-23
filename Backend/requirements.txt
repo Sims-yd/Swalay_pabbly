@@ -10,3 +10,4 @@ python-jose[cryptography]
 email-validator
 python-socketio
 aiofiles
+google-generativeai
