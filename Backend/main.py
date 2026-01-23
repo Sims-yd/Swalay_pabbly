@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.api.routes import auth, broadcasts, media, messages, templates, webhook, onboarding, profile
-from app.api.routes import contacts, contact_lists
+from app.api.routes import contacts, contact_lists, chatbot
 from app.db.mongo import close_mongo, connect_to_mongo
 from app.sockets import create_socket_app
 from config import settings
@@ -77,6 +77,7 @@ app.include_router(contacts.router)
 app.include_router(contact_lists.router)
 app.include_router(onboarding.router)
 app.include_router(profile.router)
+app.include_router(chatbot.router)
 
 
 @app.get("/health")
