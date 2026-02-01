@@ -30,7 +30,7 @@ function SignupFormContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     // Only allow 'redirect' param - ignore any sensitive data in URL
-    const redirectPath = searchParams.get("redirect") || "/onboarding";
+    const redirectPath = searchParams.get("redirect") || "/dashboard";
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
