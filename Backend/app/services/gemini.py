@@ -3,7 +3,8 @@ Gemini AI Service for WhatsApp Business API Chatbot
 Handles all interactions with the Gemini API
 """
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import List, Dict, Optional
 import logging
 from config import settings
@@ -35,8 +36,9 @@ class GeminiChatService:
     """Service class for Gemini AI chat functionality"""
     
     def __init__(self):
-        self._model = None
+        self._client = None
         self._api_key = None
+        self._model_name = "gemini-2.0-flash"
         
     def _get_api_key(self) -> str:
         """Get Gemini API key from settings"""
@@ -46,37 +48,21 @@ class GeminiChatService:
                 raise ValueError("GEMINI_API_KEY environment variable is not set")
         return self._api_key
     
-    def _get_model(self):
-        """Get or create the Gemini model instance"""
-        if not self._model:
-            genai.configure(api_key=self._get_api_key())
-            self._model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                generation_config={
-                    "temperature": 0.7,
-                    "top_p": 0.95,
-                    "top_k": 40,
-                    "max_output_tokens": 1024,
-                },
-                safety_settings=[
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                ],
-                system_instruction=WHATSAPP_BUSINESS_SYSTEM_PROMPT,
-            )
-        return self._model
+    def _get_client(self) -> genai.Client:
+        """Get or create the Gemini client instance"""
+        if not self._client:
+            self._client = genai.Client(api_key=self._get_api_key())
+        return self._client
     
-    def _format_conversation_history(self, history: List[Dict[str, str]]) -> List[Dict]:
+    def _format_conversation_history(self, history: List[Dict[str, str]]) -> List[types.Content]:
         """Format conversation history for Gemini API"""
         formatted = []
         for msg in history:
             role = "user" if msg.get("role") == "user" else "model"
-            formatted.append({
-                "role": role,
-                "parts": [{"text": msg.get("content", "")}]
-            })
+            formatted.append(types.Content(
+                role=role,
+                parts=[types.Part(text=msg.get("content", ""))]
+            ))
         return formatted
     
     async def generate_response(
@@ -95,18 +81,31 @@ class GeminiChatService:
             The AI-generated response string
         """
         try:
-            model = self._get_model()
+            client = self._get_client()
             
-            # Build the chat with history if provided
+            # Build contents with history if provided
+            contents = []
             if conversation_history and len(conversation_history) > 0:
-                # Format history for Gemini
-                formatted_history = self._format_conversation_history(conversation_history)
-                chat = model.start_chat(history=formatted_history)
-            else:
-                chat = model.start_chat(history=[])
+                contents = self._format_conversation_history(conversation_history)
             
-            # Generate response
-            response = await chat.send_message_async(user_message)
+            # Add current user message
+            contents.append(types.Content(
+                role="user",
+                parts=[types.Part(text=user_message)]
+            ))
+            
+            # Generate response with system instruction
+            response = client.models.generate_content(
+                model=self._model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=WHATSAPP_BUSINESS_SYSTEM_PROMPT,
+                    temperature=0.7,
+                    top_p=0.95,
+                    top_k=40,
+                    max_output_tokens=1024,
+                )
+            )
             
             if response and response.text:
                 return response.text.strip()
